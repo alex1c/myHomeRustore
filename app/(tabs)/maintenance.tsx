@@ -18,7 +18,7 @@ export default function MaintenanceScreen() {
       <Text style={[styles.title, { color: colors.text }]}>Обслуживание</Text>
       <EmptyState
         title="Нет задач"
-        message="Правила обслуживания и история ТО появятся здесь позже."
+        message="Обслуживание появится позже."
       />
     </Screen>
   );

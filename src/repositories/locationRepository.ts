@@ -44,6 +44,14 @@ export class LocationRepository {
     return rows.map(mapRow);
   }
 
+  countByProperty(propertyId: string): number {
+    const row = this.db.getFirst<{ c: number }>(
+      'SELECT COUNT(*) AS c FROM locations WHERE property_id = ?',
+      [propertyId],
+    );
+    return row?.c ?? 0;
+  }
+
   createLocation(input: {
     propertyId: string;
     name: string;
@@ -51,6 +59,11 @@ export class LocationRepository {
     sortOrder?: number;
     note?: string | null;
   }): Location {
+    const trimmed = input.name.trim();
+    if (!trimmed) {
+      throw new AppError('Введите название места');
+    }
+
     const now = nowUtcInstant();
     const id = createEntityIdSync();
     try {
@@ -62,7 +75,7 @@ export class LocationRepository {
           id,
           input.propertyId,
           input.parentLocationId ?? null,
-          input.name.trim(),
+          trimmed,
           input.sortOrder ?? 0,
           input.note ?? null,
           now,
@@ -70,9 +83,55 @@ export class LocationRepository {
         ],
       );
     } catch (err) {
-      throw new AppError('Failed to create location', { cause: err });
+      throw new AppError('Не удалось создать место', { cause: err });
     }
     return this.getById(id)!;
+  }
+
+  updateLocation(locationId: string, name: string): Location {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new AppError('Введите название места');
+    }
+    const existing = this.getById(locationId);
+    if (!existing) {
+      throw new AppError('Место не найдено', { code: 'NOT_FOUND' });
+    }
+    const now = nowUtcInstant();
+    this.db.run(
+      'UPDATE locations SET name = ?, updated_at = ? WHERE id = ?',
+      [trimmed, now, locationId],
+    );
+    return this.getById(locationId)!;
+  }
+
+  /**
+   * Deletes a location. When unlinkItems is true, items are moved to "no location".
+   * When false and items exist, throws.
+   */
+  deleteLocation(locationId: string, options?: { unlinkItems?: boolean }): void {
+    const itemCount = this.db.getFirst<{ c: number }>(
+      `SELECT COUNT(*) AS c FROM items WHERE location_id = ? AND status = 'active'`,
+      [locationId],
+    );
+    const count = itemCount?.c ?? 0;
+    if (count > 0 && !options?.unlinkItems) {
+      throw new AppError(
+        `В этом месте ${count} вещей. Сначала перенесите их или подтвердите удаление.`,
+        { code: 'LOCATION_NOT_EMPTY' },
+      );
+    }
+
+    this.db.withTransaction(() => {
+      if (count > 0) {
+        const now = nowUtcInstant();
+        this.db.run(
+          'UPDATE items SET location_id = NULL, updated_at = ? WHERE location_id = ?',
+          [now, locationId],
+        );
+      }
+      this.db.run('DELETE FROM locations WHERE id = ?', [locationId]);
+    });
   }
 
   getById(id: string): Location | null {

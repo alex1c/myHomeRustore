@@ -33,7 +33,7 @@ describe('money', () => {
 
   test('formats minor units as RUB', () => {
     expect(formatRubMinor(1234567)).toBe('12 345,67 ₽');
-    expect(formatRubMinor(0)).toBe('0,00 ₽');
+    expect(formatRubMinor(0)).toBe('0 ₽');
   });
 
   test('parseMajorToMinor handles dot and comma', () => {

@@ -40,12 +40,24 @@ export function formatRubMinor(minor: number | null | undefined): string {
   const sign = minor < 0 ? '-' : '';
   const abs = Math.abs(minor);
   const whole = Math.floor(abs / 100);
-  const frac = String(abs % 100).padStart(2, '0');
+  const frac = abs % 100;
   const grouped = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return `${sign}${grouped},${frac} ₽`;
+  if (frac === 0) {
+    return `${sign}${grouped} ₽`;
+  }
+  const fracStr = String(frac).padStart(2, '0');
+  return `${sign}${grouped},${fracStr} ₽`;
 }
 
-/** Parse major units (e.g. 123.45) into minor — accepts dot or comma. */
+/** Format minor units for price text input (Russian comma decimal). */
+export function minorToPriceInput(minor: number): string {
+  const whole = Math.floor(minor / 100);
+  const frac = minor % 100;
+  if (frac === 0) {
+    return String(whole);
+  }
+  return `${whole},${String(frac).padStart(2, '0')}`;
+}
 export function parseMajorToMinor(input: string, fractionDigits = 2): number | null {
   const normalized = input.replace(/\s/g, '').replace(',', '.');
   if (!/^\d+(\.\d+)?$/.test(normalized)) {

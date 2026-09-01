@@ -76,6 +76,9 @@ function RootLayoutNav() {
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="item/add" options={{ title: 'Новая вещь' }} />
+          <Stack.Screen name="item/[id]" options={{ title: 'Вещь' }} />
+          <Stack.Screen name="item/edit/[id]" options={{ title: 'Редактировать' }} />
         </Stack>
       </ThemeProvider>
     </DatabaseProvider>

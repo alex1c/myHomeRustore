@@ -20,6 +20,9 @@ import { MaintenanceRepository } from '@/src/repositories/maintenanceRepository'
 import { PropertyRepository } from '@/src/repositories/propertyRepository';
 import { SettingsRepository } from '@/src/repositories/settingsRepository';
 import { ItemDeletionService } from '@/src/services/itemDeletionService';
+import { InventoryService } from '@/src/services/inventoryService';
+import { ItemPhotoService } from '@/src/services/itemPhotoService';
+import { PurchaseRepository } from '@/src/repositories/purchaseRepository';
 
 export type DatabaseContextValue = {
   ready: boolean;
@@ -31,6 +34,9 @@ export type DatabaseContextValue = {
   maintenance: MaintenanceRepository | null;
   settings: SettingsRepository | null;
   itemDeletion: ItemDeletionService | null;
+  inventory: InventoryService | null;
+  itemPhotos: ItemPhotoService | null;
+  purchases: PurchaseRepository | null;
 };
 
 const DatabaseContext = createContext<DatabaseContextValue | null>(null);
@@ -75,6 +81,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         maintenance: null,
         settings: null,
         itemDeletion: null,
+        inventory: null,
+        itemPhotos: null,
+        purchases: null,
       };
     }
 
@@ -88,6 +97,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       maintenance: new MaintenanceRepository(db),
       settings: new SettingsRepository(db),
       itemDeletion: new ItemDeletionService(db),
+      inventory: new InventoryService(db),
+      itemPhotos: new ItemPhotoService(db),
+      purchases: new PurchaseRepository(db),
     };
   }, [db, error]);
 

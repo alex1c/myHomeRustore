@@ -18,7 +18,7 @@ export default function DocumentsScreen() {
       <Text style={[styles.title, { color: colors.text }]}>Документы</Text>
       <EmptyState
         title="Нет документов"
-        message="Чеки, гарантии и инструкции будут храниться здесь."
+        message="Документы появятся позже."
       />
     </Screen>
   );

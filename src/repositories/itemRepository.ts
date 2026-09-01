@@ -113,7 +113,7 @@ export class ItemRepository {
     for (const doc of docs) {
       paths.push(doc.file_path);
     }
-    return paths;
+    return [...new Set(paths)];
   }
 
   deleteItem(itemId: string): void {

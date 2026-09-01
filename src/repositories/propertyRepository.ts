@@ -28,6 +28,7 @@ function mapRow(row: PropertyRow): Property {
 }
 
 const DEFAULT_PROPERTY_NAME = 'Мой дом';
+const DEFAULT_PROPERTY_ID = 'default-property';
 
 export class PropertyRepository {
   constructor(private readonly db: SqlDatabase) {}
@@ -38,10 +39,21 @@ export class PropertyRepository {
     if (existing.length > 0) {
       return existing[0];
     }
-    return this.createProperty({
-      name: DEFAULT_PROPERTY_NAME,
-      type: 'home',
-    });
+
+    const now = nowUtcInstant();
+    this.db.run(
+      `INSERT OR IGNORE INTO properties
+       (id, name, type, note, created_at, updated_at)
+       SELECT ?, ?, 'home', NULL, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM properties)`,
+      [DEFAULT_PROPERTY_ID, DEFAULT_PROPERTY_NAME, now, now],
+    );
+
+    const property = this.getById(DEFAULT_PROPERTY_ID) ?? this.listProperties()[0];
+    if (!property) {
+      throw new Error('Failed to ensure default property');
+    }
+    return property;
   }
 
   listProperties(): Property[] {

@@ -19,6 +19,16 @@ describe('money', () => {
 
   test('parses spaced thousands with comma', () => {
     expect(parseRubToMinor('12 345,67')).toBe(1234567);
+    expect(parseRubToMinor('12\u00a0345,67')).toBe(1234567);
+  });
+
+  test.each([
+    ['123', 12300],
+    ['123,4', 12340],
+    ['123.4', 12340],
+    ['0,01', 1],
+  ])('parses %s exactly', (input, expected) => {
+    expect(parseRubToMinor(input)).toBe(expected);
   });
 
   test('formats minor units as RUB', () => {
@@ -32,7 +42,10 @@ describe('money', () => {
   });
 
   test('returns null for invalid input', () => {
-    expect(parseRubToMinor('abc')).toBeNull();
-    expect(parseRubToMinor('-10')).toBeNull();
+    for (const invalid of ['12,345,67', 'abc', '-', 'NaN', 'Infinity', '1e5']) {
+      expect(parseRubToMinor(invalid)).toBeNull();
+    }
+    expect(parseRubToMinor('9007199254740991')).toBeNull();
+    expect(parseMajorToMinor('1.999')).toBeNull();
   });
 });

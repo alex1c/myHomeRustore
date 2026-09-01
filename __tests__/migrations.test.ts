@@ -59,6 +59,44 @@ describe('migrations', () => {
     expect(adapter.getUserVersion()).toBe(versionBefore);
   });
 
+  test('migration and version roll back together on failure', async () => {
+    const SQL = await initSqlJs();
+    const raw = new SQL.Database();
+    const adapter = createSqlJsAdapter(raw);
+    const failingDb: SqlDatabase = {
+      ...adapter,
+      run(sql, params) {
+        if (sql.includes('INSERT INTO schema_migrations')) {
+          throw new Error('artificial migration failure');
+        }
+        return adapter.run(sql, params);
+      },
+    };
+
+    expect(() => runMigrations(failingDb)).toThrow('Migration 1');
+    expect(adapter.getUserVersion()).toBe(0);
+    expect(
+      adapter.getFirst(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'properties'",
+      ),
+    ).toBeNull();
+  });
+
+  test('rejects newer database before attempting migrations', async () => {
+    const SQL = await initSqlJs();
+    const adapter = createSqlJsAdapter(new SQL.Database());
+    adapter.setUserVersion(CURRENT_SCHEMA_VERSION + 1);
+    expect(() => runMigrations(adapter)).toThrow('is newer than app');
+  });
+
+  test('rejects user_version that disagrees with migration history', async () => {
+    const SQL = await initSqlJs();
+    const adapter = createSqlJsAdapter(new SQL.Database());
+    adapter.exec('CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT, applied_at TEXT)');
+    adapter.setUserVersion(1);
+    expect(() => runMigrations(adapter)).toThrow('Migration history mismatch');
+  });
+
   test('default property is created on first open', async () => {
     const db = await openTestDb();
     const row = db.getFirst<{ c: number }>(
@@ -69,6 +107,17 @@ describe('migrations', () => {
       'SELECT name FROM properties LIMIT 1',
     );
     expect(property?.name).toBe('Мой дом');
+  });
+
+  test('default property seed stays idempotent across repeated clients', async () => {
+    const SQL = await initSqlJs();
+    const adapter = createSqlJsAdapter(new SQL.Database());
+    createDatabaseFromClient(adapter);
+    createDatabaseFromClient(adapter);
+    createDatabaseFromClient(adapter);
+    expect(
+      adapter.getFirst<{ c: number }>('SELECT COUNT(*) AS c FROM properties')?.c,
+    ).toBe(1);
   });
 
   test('foreign keys are enforced', async () => {

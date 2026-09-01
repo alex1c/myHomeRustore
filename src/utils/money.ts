@@ -21,7 +21,7 @@ export function parseRubToMinor(input: string): number | null {
   }
   const fraction = (match[3] ?? '').padEnd(2, '0').slice(0, 2);
   const minor = whole * 100 + Number(fraction);
-  return minor;
+  return Number.isSafeInteger(minor) ? minor : null;
 }
 
 /** Convert integer kopecks to major units number (for math only, not display). */
@@ -52,6 +52,10 @@ export function parseMajorToMinor(input: string, fractionDigits = 2): number | n
     return null;
   }
   const [wholeStr, fracStr = ''] = normalized.split('.');
+  if (fracStr.length > fractionDigits) {
+    return null;
+  }
   const frac = fracStr.padEnd(fractionDigits, '0').slice(0, fractionDigits);
-  return Number(wholeStr) * 10 ** fractionDigits + Number(frac);
+  const minor = Number(wholeStr) * 10 ** fractionDigits + Number(frac);
+  return Number.isSafeInteger(minor) ? minor : null;
 }

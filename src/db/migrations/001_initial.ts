@@ -59,6 +59,13 @@ export const migration001Initial: Migration = {
         updated_at TEXT NOT NULL,
         FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
         FOREIGN KEY (location_id, property_id) REFERENCES locations(id, property_id),
+        CHECK (primary_photo_path IS NULL OR (
+          primary_photo_path GLOB 'photos/?*' AND
+          instr(primary_photo_path, '..') = 0 AND
+          instr(primary_photo_path, '\\') = 0 AND
+          instr(primary_photo_path, ':') = 0
+        )),
+        UNIQUE (primary_photo_path),
         UNIQUE (id, property_id)
       );
 
@@ -106,6 +113,13 @@ export const migration001Initial: Migration = {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+        CHECK (
+          file_path GLOB 'documents/?*' AND
+          instr(file_path, '..') = 0 AND
+          instr(file_path, '\\') = 0 AND
+          instr(file_path, ':') = 0
+        ),
+        UNIQUE (file_path),
         UNIQUE (id, item_id)
       );
 
@@ -135,8 +149,8 @@ export const migration001Initial: Migration = {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
-        FOREIGN KEY (maintenance_rule_id, item_id)
-          REFERENCES maintenance_rules(id, item_id) ON DELETE SET NULL,
+        FOREIGN KEY (maintenance_rule_id)
+          REFERENCES maintenance_rules(id) ON DELETE SET NULL,
         UNIQUE (id, item_id)
       );
 
@@ -192,6 +206,12 @@ export const migration001Initial: Migration = {
           REFERENCES maintenance_rules(id, item_id) ON DELETE CASCADE,
         FOREIGN KEY (consumable_id, item_id)
           REFERENCES consumables(id, item_id) ON DELETE CASCADE,
+        CHECK (
+          (reminder_type = 'warranty' AND warranty_id IS NOT NULL AND maintenance_rule_id IS NULL AND consumable_id IS NULL) OR
+          (reminder_type = 'maintenance' AND warranty_id IS NULL AND maintenance_rule_id IS NOT NULL AND consumable_id IS NULL) OR
+          (reminder_type = 'consumable' AND warranty_id IS NULL AND maintenance_rule_id IS NULL AND consumable_id IS NOT NULL) OR
+          (reminder_type = 'custom' AND warranty_id IS NULL AND maintenance_rule_id IS NULL AND consumable_id IS NULL)
+        ),
         UNIQUE (id, item_id)
       );
 
@@ -236,6 +256,22 @@ export const migration001Initial: Migration = {
         (SELECT property_id FROM locations WHERE id = NEW.parent_location_id) != NEW.property_id
       BEGIN
         SELECT RAISE(ABORT, 'parent location belongs to another property');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS maintenance_event_rule_same_item_insert
+      BEFORE INSERT ON maintenance_events
+      WHEN NEW.maintenance_rule_id IS NOT NULL AND
+        (SELECT item_id FROM maintenance_rules WHERE id = NEW.maintenance_rule_id) != NEW.item_id
+      BEGIN
+        SELECT RAISE(ABORT, 'maintenance rule belongs to another item');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS maintenance_event_rule_same_item_update
+      BEFORE UPDATE OF maintenance_rule_id, item_id ON maintenance_events
+      WHEN NEW.maintenance_rule_id IS NOT NULL AND
+        (SELECT item_id FROM maintenance_rules WHERE id = NEW.maintenance_rule_id) != NEW.item_id
+      BEGIN
+        SELECT RAISE(ABORT, 'maintenance rule belongs to another item');
       END;
     `);
   },

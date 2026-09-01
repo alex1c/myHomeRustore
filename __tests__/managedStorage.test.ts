@@ -17,8 +17,12 @@ describe('managed storage paths', () => {
 
   test('rejects traversal and absolute paths', () => {
     expect(sanitizeBackupRelativePath('../etc/passwd')).toBeNull();
+    expect(sanitizeBackupRelativePath('../../file')).toBeNull();
+    expect(sanitizeBackupRelativePath('documents/../../../x')).toBeNull();
+    expect(sanitizeBackupRelativePath('documents\\..\\x')).toBeNull();
     expect(sanitizeBackupRelativePath('/absolute/path')).toBeNull();
     expect(sanitizeBackupRelativePath('C:\\windows\\file')).toBeNull();
+    expect(sanitizeBackupRelativePath('file:///tmp/a')).toBeNull();
     expect(isAllowedManagedRelativePath('other/file.bin')).toBe(false);
   });
 

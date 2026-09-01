@@ -99,6 +99,41 @@ describe('integrity', () => {
     ).toBeNull();
   });
 
+  test('deleting an item cascades all direct and indirect metadata', async () => {
+    const db = await openTestDb();
+    const home = new PropertyRepository(db).listProperties()[0]!;
+    const item = new ItemRepository(db).createItem({ propertyId: home.id, name: 'Boiler' });
+
+    db.run(`INSERT INTO purchases (id,item_id,currency,created_at,updated_at) VALUES ('p',?,'RUB',?,?)`, [item.id, NOW, NOW]);
+    db.run(`INSERT INTO warranties (id,item_id,type,created_at,updated_at) VALUES ('w',?,'manufacturer',?,?)`, [item.id, NOW, NOW]);
+    db.run(`INSERT INTO documents (id,item_id,type,title,file_path,created_at,updated_at) VALUES ('d',?,'manual','Manual','documents/d.pdf',?,?)`, [item.id, NOW, NOW]);
+    db.run(`INSERT INTO maintenance_rules (id,item_id,title,created_at,updated_at) VALUES ('mr',?,'Service',?,?)`, [item.id, NOW, NOW]);
+    db.run(`INSERT INTO maintenance_events (id,item_id,maintenance_rule_id,performed_at,created_at,updated_at) VALUES ('me',?,'mr',?,?,?)`, [item.id, NOW, NOW, NOW]);
+    db.run(`INSERT INTO consumables (id,item_id,name,created_at,updated_at) VALUES ('c',?,'Filter',?,?)`, [item.id, NOW, NOW]);
+    db.run(`INSERT INTO consumable_events (id,item_id,consumable_id,replaced_at,created_at,updated_at) VALUES ('ce',?,'c',?,?,?)`, [item.id, NOW, NOW, NOW]);
+    db.run(`INSERT INTO reminders (id,item_id,reminder_type,warranty_id,due_at,created_at,updated_at) VALUES ('r',?,'warranty','w',?,?,?)`, [item.id, NOW, NOW, NOW]);
+
+    new ItemRepository(db).deleteItem(item.id);
+
+    for (const table of ['purchases', 'warranties', 'documents', 'maintenance_rules', 'maintenance_events', 'consumables', 'consumable_events', 'reminders']) {
+      expect(db.getFirst(`SELECT id FROM ${table} LIMIT 1`)).toBeNull();
+    }
+  });
+
+  test('deleting a maintenance rule keeps its event and clears only rule id', async () => {
+    const db = await openTestDb();
+    const home = new PropertyRepository(db).listProperties()[0]!;
+    const item = new ItemRepository(db).createItem({ propertyId: home.id, name: 'Boiler' });
+    const maintenance = new MaintenanceRepository(db);
+    const rule = maintenance.createRule({ itemId: item.id, title: 'Service' });
+    const event = maintenance.createEvent({ itemId: item.id, maintenanceRuleId: rule.id, performedAt: NOW });
+
+    db.run('DELETE FROM maintenance_rules WHERE id = ?', [rule.id]);
+
+    expect(maintenance.getEventById(event.id)?.itemId).toBe(item.id);
+    expect(maintenance.getEventById(event.id)?.maintenanceRuleId).toBeNull();
+  });
+
   test('consumable event must belong to same item as consumable', async () => {
     const db = await openTestDb();
     const properties = new PropertyRepository(db);
@@ -125,5 +160,55 @@ describe('integrity', () => {
         ['ce-1', humidifier.id, 'c-1', NOW, NOW, NOW],
       ),
     ).toThrow();
+  });
+
+  test.each([
+    ['warranty', 'warranty_id', 'w'],
+    ['maintenance', 'maintenance_rule_id', 'mr'],
+    ['consumable', 'consumable_id', 'c'],
+  ])('reminder %s target cannot belong to another item', async (type, column, targetId) => {
+    const db = await openTestDb();
+    const home = new PropertyRepository(db).listProperties()[0]!;
+    const items = new ItemRepository(db);
+    const itemA = items.createItem({ propertyId: home.id, name: 'A' });
+    const itemB = items.createItem({ propertyId: home.id, name: 'B' });
+    db.run(`INSERT INTO warranties (id,item_id,type,created_at,updated_at) VALUES ('w',?,'manufacturer',?,?)`, [itemB.id, NOW, NOW]);
+    db.run(`INSERT INTO maintenance_rules (id,item_id,title,created_at,updated_at) VALUES ('mr',?,'Rule',?,?)`, [itemB.id, NOW, NOW]);
+    db.run(`INSERT INTO consumables (id,item_id,name,created_at,updated_at) VALUES ('c',?,'Filter',?,?)`, [itemB.id, NOW, NOW]);
+
+    expect(() => db.run(
+      `INSERT INTO reminders (id,item_id,reminder_type,${column},due_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?)`,
+      [`r-${type}`, itemA.id, type, targetId, NOW, NOW, NOW],
+    )).toThrow();
+  });
+
+  test('reminder type requires exactly its matching target', async () => {
+    const db = await openTestDb();
+    const home = new PropertyRepository(db).listProperties()[0]!;
+    const item = new ItemRepository(db).createItem({ propertyId: home.id, name: 'A' });
+    db.run(`INSERT INTO warranties (id,item_id,type,created_at,updated_at) VALUES ('w',?,'manufacturer',?,?)`, [item.id, NOW, NOW]);
+    db.run(`INSERT INTO maintenance_rules (id,item_id,title,created_at,updated_at) VALUES ('mr',?,'Rule',?,?)`, [item.id, NOW, NOW]);
+
+    expect(() => db.run(
+      `INSERT INTO reminders (id,item_id,reminder_type,due_at,created_at,updated_at) VALUES ('missing',?,'warranty',?,?,?)`,
+      [item.id, NOW, NOW, NOW],
+    )).toThrow();
+    expect(() => db.run(
+      `INSERT INTO reminders (id,item_id,reminder_type,warranty_id,maintenance_rule_id,due_at,created_at,updated_at) VALUES ('multiple',?,'warranty','w','mr',?,?,?)`,
+      [item.id, NOW, NOW, NOW],
+    )).toThrow();
+  });
+
+  test('database rejects unsafe and duplicate managed paths', async () => {
+    const db = await openTestDb();
+    const home = new PropertyRepository(db).listProperties()[0]!;
+    const items = new ItemRepository(db);
+    const itemA = items.createItem({ propertyId: home.id, name: 'A', primaryPhotoPath: 'photos/a.jpg' });
+    expect(() => items.createItem({ propertyId: home.id, name: 'B', primaryPhotoPath: 'photos/a.jpg' })).toThrow();
+    expect(() => items.createItem({ propertyId: home.id, name: 'C', primaryPhotoPath: 'photos/../x' })).toThrow();
+    expect(() => db.run(
+      `INSERT INTO documents (id,item_id,type,title,file_path,created_at,updated_at) VALUES ('bad',?,'manual','Bad','file:///tmp/a',?,?)`,
+      [itemA.id, NOW, NOW],
+    )).toThrow();
   });
 });

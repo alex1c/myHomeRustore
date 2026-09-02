@@ -11,6 +11,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { DatabaseProvider } from '@/src/providers/DatabaseProvider';
+import { useNotificationNavigation } from '@/src/hooks/useNotificationNavigation';
 import { darkColors, lightColors } from '@/src/theme/tokens';
 
 export { ErrorBoundary } from 'expo-router';
@@ -69,6 +70,7 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  useNotificationNavigation();
 
   return (
     <DatabaseProvider>
@@ -79,6 +81,11 @@ function RootLayoutNav() {
           <Stack.Screen name="item/add" options={{ title: 'Новая вещь' }} />
           <Stack.Screen name="item/[id]" options={{ title: 'Вещь' }} />
           <Stack.Screen name="item/edit/[id]" options={{ title: 'Редактировать' }} />
+          <Stack.Screen name="warranty/add" options={{ title: 'Добавить гарантию' }} />
+          <Stack.Screen name="warranty/[id]" options={{ title: 'Гарантия' }} />
+          <Stack.Screen name="warranty/edit/[id]" options={{ title: 'Редактировать гарантию' }} />
+          <Stack.Screen name="document/add" options={{ title: 'Добавить документ' }} />
+          <Stack.Screen name="document/[id]" options={{ title: 'Документ' }} />
         </Stack>
       </ThemeProvider>
     </DatabaseProvider>

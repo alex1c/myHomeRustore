@@ -22,12 +22,21 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Приложению нужен доступ к фото для снимков вещей.",
-          "cameraPermission": "Приложению нужна камера для фото вещей.",
+          "photosPermission": "Приложению нужен доступ к фото для снимков вещей и документов.",
+          "cameraPermission": "Приложению нужна камера для фото вещей и документов.",
           "microphonePermission": false
         }
       ],
-      "@react-native-community/datetimepicker"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#047857"
+        }
+      ],
+      "expo-document-picker",
+      "@react-native-community/datetimepicker",
+      "expo-sharing"
     ],
     "ios": {
       "supportsTablet": true,

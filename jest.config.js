@@ -13,6 +13,7 @@ const config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
+  setupFiles: ['<rootDir>/jest.setup.ts'],
   testTimeout: 30000,
 };
 

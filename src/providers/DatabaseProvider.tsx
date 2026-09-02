@@ -19,10 +19,19 @@ import { LocationRepository } from '@/src/repositories/locationRepository';
 import { MaintenanceRepository } from '@/src/repositories/maintenanceRepository';
 import { PropertyRepository } from '@/src/repositories/propertyRepository';
 import { SettingsRepository } from '@/src/repositories/settingsRepository';
+import { DocumentRepository } from '@/src/repositories/documentRepository';
+import { ReminderRepository } from '@/src/repositories/reminderRepository';
+import { PurchaseRepository } from '@/src/repositories/purchaseRepository';
+import { WarrantyRepository } from '@/src/repositories/warrantyRepository';
+import { DocumentService } from '@/src/services/documentService';
 import { ItemDeletionService } from '@/src/services/itemDeletionService';
 import { InventoryService } from '@/src/services/inventoryService';
 import { ItemPhotoService } from '@/src/services/itemPhotoService';
-import { PurchaseRepository } from '@/src/repositories/purchaseRepository';
+import {
+  ExpoNotificationAdapter,
+  type NotificationAdapter,
+} from '@/src/services/notificationAdapter';
+import { WarrantyService } from '@/src/services/warrantyService';
 
 export type DatabaseContextValue = {
   ready: boolean;
@@ -37,6 +46,12 @@ export type DatabaseContextValue = {
   inventory: InventoryService | null;
   itemPhotos: ItemPhotoService | null;
   purchases: PurchaseRepository | null;
+  warranties: WarrantyRepository | null;
+  documents: DocumentRepository | null;
+  reminders: ReminderRepository | null;
+  warrantyService: WarrantyService | null;
+  documentService: DocumentService | null;
+  notifications: NotificationAdapter | null;
 };
 
 const DatabaseContext = createContext<DatabaseContextValue | null>(null);
@@ -84,8 +99,16 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         inventory: null,
         itemPhotos: null,
         purchases: null,
+        warranties: null,
+        documents: null,
+        reminders: null,
+        warrantyService: null,
+        documentService: null,
+        notifications: null,
       };
     }
+
+    const notifications = new ExpoNotificationAdapter();
 
     return {
       ready: true,
@@ -100,6 +123,12 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       inventory: new InventoryService(db),
       itemPhotos: new ItemPhotoService(db),
       purchases: new PurchaseRepository(db),
+      warranties: new WarrantyRepository(db),
+      documents: new DocumentRepository(db),
+      reminders: new ReminderRepository(db),
+      warrantyService: new WarrantyService(db, notifications),
+      documentService: new DocumentService(db),
+      notifications,
     };
   }, [db, error]);
 

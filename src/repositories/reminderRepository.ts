@@ -79,6 +79,16 @@ export class ReminderRepository {
     return rows.map(mapRow);
   }
 
+  listByConsumableId(consumableId: string): Reminder[] {
+    const rows = this.db.getAll<ReminderRow>(
+      `SELECT * FROM reminders
+       WHERE consumable_id = ? AND reminder_type = 'consumable'
+       ORDER BY due_at ASC`,
+      [consumableId],
+    );
+    return rows.map(mapRow);
+  }
+
   listNotificationIdsByItemId(itemId: string): string[] {
     return this.db
       .getAll<{ notification_id: string }>(
@@ -142,6 +152,16 @@ export class ReminderRepository {
       `DELETE FROM reminders
        WHERE maintenance_rule_id = ? AND reminder_type = 'maintenance'`,
       [ruleId],
+    );
+    return existing;
+  }
+
+  deleteByConsumableId(consumableId: string): Reminder[] {
+    const existing = this.listByConsumableId(consumableId);
+    this.db.run(
+      `DELETE FROM reminders
+       WHERE consumable_id = ? AND reminder_type = 'consumable'`,
+      [consumableId],
     );
     return existing;
   }

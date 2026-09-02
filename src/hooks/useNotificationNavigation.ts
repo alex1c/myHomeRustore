@@ -15,8 +15,20 @@ function navigateFromNotificationData(
   const warrantyId = typeof data?.warrantyId === 'string' ? data.warrantyId : null;
   const maintenanceRuleId =
     typeof data?.maintenanceRuleId === 'string' ? data.maintenanceRuleId : null;
+  const consumableId =
+    typeof data?.consumableId === 'string' ? data.consumableId : null;
   const itemId = typeof data?.itemId === 'string' ? data.itemId : null;
 
+  if (
+    consumableId &&
+    db?.getFirst('SELECT id FROM consumables WHERE id = ?', [consumableId])
+  ) {
+    router.push({
+      pathname: '/consumable/[id]',
+      params: { id: consumableId },
+    });
+    return;
+  }
   if (
     maintenanceRuleId &&
     db?.getFirst('SELECT id FROM maintenance_rules WHERE id = ?', [

@@ -33,6 +33,8 @@ import {
 } from '@/src/services/notificationAdapter';
 import { WarrantyService } from '@/src/services/warrantyService';
 import { MaintenanceService } from '@/src/services/maintenanceService';
+import { ConsumableService } from '@/src/services/consumableService';
+import { ConsumableRepository } from '@/src/repositories/consumableRepository';
 
 export type DatabaseContextValue = {
   ready: boolean;
@@ -50,9 +52,11 @@ export type DatabaseContextValue = {
   warranties: WarrantyRepository | null;
   documents: DocumentRepository | null;
   reminders: ReminderRepository | null;
+  consumables: ConsumableRepository | null;
   warrantyService: WarrantyService | null;
   documentService: DocumentService | null;
   maintenanceService: MaintenanceService | null;
+  consumableService: ConsumableService | null;
   notifications: NotificationAdapter | null;
 };
 
@@ -107,6 +111,8 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         warrantyService: null,
         documentService: null,
         maintenanceService: null,
+        consumableService: null,
+        consumables: null,
         notifications: null,
       };
     }
@@ -129,9 +135,11 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       warranties: new WarrantyRepository(db),
       documents: new DocumentRepository(db),
       reminders: new ReminderRepository(db),
+      consumables: new ConsumableRepository(db),
       warrantyService: new WarrantyService(db, notifications),
       documentService: new DocumentService(db),
       maintenanceService: new MaintenanceService(db, notifications),
+      consumableService: new ConsumableService(db, notifications),
       notifications,
     };
   }, [db, error]);

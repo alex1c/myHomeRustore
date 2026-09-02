@@ -13,8 +13,10 @@ import { Screen } from '@/components/ui/Screen';
 import type { ItemListRow } from '@/src/domain/inventory';
 import type { WarrantyAttentionRow } from '@/src/repositories/warrantyRepository';
 import type { MaintenanceListRow } from '@/src/repositories/maintenanceRepository';
+import type { ConsumableListRow } from '@/src/repositories/consumableRepository';
 import { WARRANTY_EXPIRING_SOON_DAYS } from '@/src/domain/warranty';
 import { MAINTENANCE_TODAY_AHEAD_DAYS } from '@/src/domain/maintenance';
+import { CONSUMABLE_TODAY_AHEAD_DAYS } from '@/src/domain/consumables';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { useThemeColors } from '@/src/theme/useThemeColors';
@@ -22,12 +24,20 @@ import { spacing, typography } from '@/src/theme/tokens';
 import { toLocalDateOnly } from '@/src/utils/datetime';
 import { warrantyTypeLabel } from '@/src/utils/warrantyPresentation';
 import { presentMaintenanceStatus } from '@/src/utils/maintenancePresentation';
+import { presentConsumableStatus } from '@/src/utils/consumablePresentation';
 import { formatRussianDate } from '@/src/utils/formatDate';
 
 export default function TodayScreen() {
   const router = useRouter();
-  const { ready, error, inventory, locations, warranties, maintenanceService } =
-    useDatabase();
+  const {
+    ready,
+    error,
+    inventory,
+    locations,
+    warranties,
+    maintenanceService,
+    consumableService,
+  } = useDatabase();
   const { property, propertyId } = useActiveProperty();
   const colors = useThemeColors();
   const [itemCount, setItemCount] = useState(0);
@@ -36,6 +46,9 @@ export default function TodayScreen() {
   const [attention, setAttention] = useState<WarrantyAttentionRow[]>([]);
   const [maintenanceAttention, setMaintenanceAttention] = useState<
     MaintenanceListRow[]
+  >([]);
+  const [consumableAttention, setConsumableAttention] = useState<
+    ConsumableListRow[]
   >([]);
   const [markingId, setMarkingId] = useState<string | null>(null);
 
@@ -62,7 +75,23 @@ export default function TodayScreen() {
         ),
       );
     }
-  }, [ready, inventory, locations, warranties, maintenanceService, propertyId]);
+    if (consumableService) {
+      setConsumableAttention(
+        consumableService.listAttentionForProperty(
+          propertyId,
+          CONSUMABLE_TODAY_AHEAD_DAYS,
+        ),
+      );
+    }
+  }, [
+    ready,
+    inventory,
+    locations,
+    warranties,
+    maintenanceService,
+    consumableService,
+    propertyId,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -198,6 +227,48 @@ export default function TodayScreen() {
                   numberOfLines={1}
                 >
                   {row.itemName}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </>
+      ) : null}
+
+      {consumableAttention.length > 0 ? (
+        <>
+          <Text style={[styles.section, { color: colors.text }]}>Расходники</Text>
+          {consumableAttention.map((row) => {
+            const status = presentConsumableStatus(row.consumable);
+            return (
+              <Pressable
+                key={row.consumable.id}
+                onPress={() =>
+                  router.push({
+                    pathname: '/consumable/[id]',
+                    params: { id: row.consumable.id },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.attentionRow,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                    opacity: pressed ? 0.9 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.attentionMeta, { color: colors.textMuted }]}>
+                  {status.primary}
+                </Text>
+                <Text style={[styles.attentionTitle, { color: colors.text }]}>
+                  {row.consumable.name}
+                </Text>
+                <Text
+                  style={[styles.attentionItem, { color: colors.textSecondary }]}
+                  numberOfLines={1}
+                >
+                  {row.itemName}
+                  {status.secondary ? ` · ${status.secondary}` : ''}
                 </Text>
               </Pressable>
             );

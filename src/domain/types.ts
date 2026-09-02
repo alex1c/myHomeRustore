@@ -16,6 +16,8 @@ export type DocumentType =
   | 'other';
 export type ReminderType = 'warranty' | 'maintenance' | 'consumable' | 'custom';
 export type IntervalUnit = 'day' | 'week' | 'month' | 'year';
+export type ConsumableStockUnit = 'pcs' | 'set' | 'pack';
+export type ConsumableEventType = 'replacement' | 'stock_add' | 'stock_set';
 
 export interface Property {
   id: string;
@@ -123,10 +125,14 @@ export interface Consumable {
   itemId: string;
   name: string;
   modelOrArticle: string | null;
+  manufacturer: string | null;
   replacementIntervalValue: number | null;
   replacementIntervalUnit: IntervalUnit | null;
   lastReplacedDate: DateOnly | null;
   nextDueDate: DateOnly | null;
+  /** NULL = stock not tracked; 0 = tracked and empty. */
+  stockQuantity: number | null;
+  stockUnit: ConsumableStockUnit | null;
   priceMinor: number | null;
   note: string | null;
   active: boolean;
@@ -138,7 +144,12 @@ export interface ConsumableEvent {
   id: string;
   itemId: string;
   consumableId: string;
+  eventType: ConsumableEventType;
+  /** Calendar moment of the event (noon-UTC DateOnly storage). */
   replacedAt: UtcInstant;
+  quantityDelta: number | null;
+  stockBefore: number | null;
+  stockAfter: number | null;
   costMinor: number | null;
   note: string | null;
   createdAt: UtcInstant;

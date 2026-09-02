@@ -1,5 +1,5 @@
 /**
- * Global maintenance tab — searchable list with status filters.
+ * Maintenance tab with ТО / Расходники switch.
  */
 
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -7,46 +7,87 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from 'react-native';
 
+import { ConsumableCard } from '@/components/consumables/ConsumableCard';
 import { MaintenanceCard } from '@/components/maintenance/MaintenanceCard';
 import { FilterChips } from '@/components/inventory/FilterChips';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
+import type { ConsumableFilter } from '@/src/domain/consumables';
 import type { MaintenanceFilter } from '@/src/domain/maintenance';
+import type { ConsumableListRow } from '@/src/repositories/consumableRepository';
 import type { MaintenanceListRow } from '@/src/repositories/maintenanceRepository';
+import { AppError } from '@/src/domain/errors';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { useThemeColors } from '@/src/theme/useThemeColors';
-import { spacing, typography } from '@/src/theme/tokens';
+import { radii, spacing, typography } from '@/src/theme/tokens';
 import { formatRussianDate } from '@/src/utils/formatDate';
 import { toLocalDateOnly } from '@/src/utils/datetime';
 
-const FILTER_CHIPS = [
+type TabMode = 'maintenance' | 'consumables';
+
+const MAINTENANCE_FILTERS = [
   { id: 'all', label: 'Все' },
   { id: 'overdue', label: 'Просрочено' },
   { id: 'upcoming', label: 'Скоро' },
 ];
 
+const CONSUMABLE_FILTERS = [
+  { id: 'all', label: 'Все' },
+  { id: 'attention', label: 'Требуют внимания' },
+  { id: 'out_of_stock', label: 'Нет в запасе' },
+];
+
 export default function MaintenanceScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { ready, maintenanceService } = useDatabase();
+  const { ready, maintenanceService, consumableService } = useDatabase();
   const { propertyId } = useActiveProperty();
+  const [mode, setMode] = useState<TabMode>('maintenance');
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<MaintenanceFilter>('all');
-  const [rows, setRows] = useState<MaintenanceListRow[]>([]);
-  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [maintenanceFilter, setMaintenanceFilter] =
+    useState<MaintenanceFilter>('all');
+  const [consumableFilter, setConsumableFilter] =
+    useState<ConsumableFilter>('all');
+  const [maintenanceRows, setMaintenanceRows] = useState<MaintenanceListRow[]>([]);
+  const [consumableRows, setConsumableRows] = useState<ConsumableListRow[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    if (!ready || !maintenanceService || !propertyId) return;
-    setRows(
-      maintenanceService.listForProperty(propertyId, { search, filter }),
-    );
-  }, [ready, maintenanceService, propertyId, search, filter]);
+    if (!ready || !propertyId) return;
+    if (mode === 'maintenance' && maintenanceService) {
+      setMaintenanceRows(
+        maintenanceService.listForProperty(propertyId, {
+          search,
+          filter: maintenanceFilter,
+        }),
+      );
+    }
+    if (mode === 'consumables' && consumableService) {
+      setConsumableRows(
+        consumableService.listForProperty(propertyId, {
+          search,
+          filter: consumableFilter,
+        }),
+      );
+    }
+  }, [
+    ready,
+    propertyId,
+    mode,
+    maintenanceService,
+    consumableService,
+    search,
+    maintenanceFilter,
+    consumableFilter,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -55,8 +96,8 @@ export default function MaintenanceScreen() {
   );
 
   const handleMarkDone = async (ruleId: string) => {
-    if (!maintenanceService || markingId) return;
-    setMarkingId(ruleId);
+    if (!maintenanceService || busyId) return;
+    setBusyId(ruleId);
     try {
       const result = await maintenanceService.markDone(ruleId);
       const next = result.rule.nextDueDate
@@ -72,15 +113,55 @@ export default function MaintenanceScreen() {
     } catch {
       Alert.alert('Ошибка', 'Не удалось отметить выполнение');
     } finally {
-      setMarkingId(null);
+      setBusyId(null);
+    }
+  };
+
+  const handleMarkReplaced = async (consumableId: string, allowZero = false) => {
+    if (!consumableService || busyId) return;
+    setBusyId(consumableId);
+    try {
+      const result = await consumableService.markReplaced(
+        consumableId,
+        toLocalDateOnly(),
+        null,
+        { allowZeroStock: allowZero },
+      );
+      const next = result.consumable.nextDueDate
+        ? formatRussianDate(result.consumable.nextDueDate)
+        : null;
+      Alert.alert(
+        'Готово',
+        next ? `Замена отмечена\nСледующая замена — ${next}` : 'Замена отмечена',
+      );
+      load();
+    } catch (err) {
+      if (err instanceof AppError && err.code === 'STOCK_ZERO_CONFIRM') {
+        Alert.alert('В запасе указано 0 шт.', 'Отметить замену всё равно?', [
+          { text: 'Отмена', style: 'cancel' },
+          {
+            text: 'Отметить',
+            onPress: () => void handleMarkReplaced(consumableId, true),
+          },
+        ]);
+        return;
+      }
+      Alert.alert('Ошибка', 'Не удалось отметить замену');
+    } finally {
+      setBusyId(null);
     }
   };
 
   const emptyMessage = useMemo(() => {
-    if (filter === 'overdue') return 'Нет просроченных работ.';
-    if (filter === 'upcoming') return 'Нет предстоящих работ.';
-    return 'Добавьте обслуживание в карточке вещи.';
-  }, [filter]);
+    if (mode === 'maintenance') {
+      if (maintenanceFilter === 'overdue') return 'Нет просроченных работ.';
+      if (maintenanceFilter === 'upcoming') return 'Нет предстоящих работ.';
+      return 'Добавьте обслуживание в карточке вещи.';
+    }
+    if (consumableFilter === 'out_of_stock') return 'Нет расходников с нулевым запасом.';
+    if (consumableFilter === 'attention') return 'Сейчас ничего не требует внимания.';
+    return 'Добавьте расходник в карточке вещи.';
+  }, [mode, maintenanceFilter, consumableFilter]);
 
   return (
     <Screen>
@@ -88,6 +169,40 @@ export default function MaintenanceScreen() {
       <Text style={[styles.date, { color: colors.textSecondary }]}>
         {toLocalDateOnly()}
       </Text>
+
+      <View style={styles.modeRow}>
+        {([
+          ['maintenance', 'ТО'],
+          ['consumables', 'Расходники'],
+        ] as const).map(([id, label]) => {
+          const selected = mode === id;
+          return (
+            <Pressable
+              key={id}
+              onPress={() => {
+                setMode(id);
+                setSearch('');
+              }}
+              style={[
+                styles.modeChip,
+                {
+                  borderColor: selected ? colors.primary : colors.border,
+                  backgroundColor: selected ? colors.primarySoft : colors.surface,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.modeLabel,
+                  { color: selected ? colors.primary : colors.textSecondary },
+                ]}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <TextInput
         placeholder="Поиск"
@@ -105,30 +220,60 @@ export default function MaintenanceScreen() {
       />
 
       <FilterChips
-        chips={FILTER_CHIPS}
-        selectedId={filter}
-        onSelect={(id) => setFilter(id as MaintenanceFilter)}
+        chips={mode === 'maintenance' ? MAINTENANCE_FILTERS : CONSUMABLE_FILTERS}
+        selectedId={mode === 'maintenance' ? maintenanceFilter : consumableFilter}
+        onSelect={(id) => {
+          if (mode === 'maintenance') {
+            setMaintenanceFilter(id as MaintenanceFilter);
+          } else {
+            setConsumableFilter(id as ConsumableFilter);
+          }
+        }}
       />
 
-      {rows.length === 0 ? (
-        <EmptyState title="Нет задач" message={emptyMessage} />
+      {mode === 'maintenance' ? (
+        maintenanceRows.length === 0 ? (
+          <EmptyState title="Нет задач" message={emptyMessage} />
+        ) : (
+          <FlatList
+            data={maintenanceRows}
+            keyExtractor={(row) => row.rule.id}
+            contentContainerStyle={styles.list}
+            renderItem={({ item: row }) => (
+              <MaintenanceCard
+                rule={row.rule}
+                itemName={row.itemName}
+                onPress={() =>
+                  router.push({
+                    pathname: '/maintenance/[id]',
+                    params: { id: row.rule.id },
+                  })
+                }
+                onMarkDone={() => void handleMarkDone(row.rule.id)}
+                markingDone={busyId === row.rule.id}
+              />
+            )}
+          />
+        )
+      ) : consumableRows.length === 0 ? (
+        <EmptyState title="Нет расходников" message={emptyMessage} />
       ) : (
         <FlatList
-          data={rows}
-          keyExtractor={(row) => row.rule.id}
+          data={consumableRows}
+          keyExtractor={(row) => row.consumable.id}
           contentContainerStyle={styles.list}
           renderItem={({ item: row }) => (
-            <MaintenanceCard
-              rule={row.rule}
+            <ConsumableCard
+              consumable={row.consumable}
               itemName={row.itemName}
               onPress={() =>
                 router.push({
-                  pathname: '/maintenance/[id]',
-                  params: { id: row.rule.id },
+                  pathname: '/consumable/[id]',
+                  params: { id: row.consumable.id },
                 })
               }
-              onMarkDone={() => void handleMarkDone(row.rule.id)}
-              markingDone={markingId === row.rule.id}
+              onMarkReplaced={() => void handleMarkReplaced(row.consumable.id)}
+              marking={busyId === row.consumable.id}
             />
           )}
         />
@@ -140,6 +285,20 @@ export default function MaintenanceScreen() {
 const styles = StyleSheet.create({
   title: { ...typography.title },
   date: { ...typography.body, marginBottom: spacing.md },
+  modeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  modeChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: radii.lg,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeLabel: { ...typography.body, fontWeight: '600' },
   search: {
     ...typography.body,
     minHeight: 48,

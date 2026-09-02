@@ -21,8 +21,15 @@ import { Screen } from '@/components/ui/Screen';
 import { DocumentCard } from '@/components/documents/DocumentCard';
 import { WarrantyCard } from '@/components/warranty/WarrantyCard';
 import { MaintenanceCard } from '@/components/maintenance/MaintenanceCard';
+import { ConsumableCard } from '@/components/consumables/ConsumableCard';
 import type { ItemDetail } from '@/src/domain/inventory';
-import type { Document, MaintenanceRule, Warranty } from '@/src/domain/types';
+import type {
+  Consumable,
+  Document,
+  MaintenanceRule,
+  Warranty,
+} from '@/src/domain/types';
+import { AppError } from '@/src/domain/errors';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { managedUriFromRelativePath } from '@/src/services/managedFileService';
 import { useThemeColors } from '@/src/theme/useThemeColors';
@@ -42,11 +49,13 @@ export default function ItemDetailScreen() {
     warrantyService,
     documentService,
     maintenanceService,
+    consumableService,
   } = useDatabase();
   const [detail, setDetail] = useState<ItemDetail | null>(null);
   const [warranties, setWarranties] = useState<Warranty[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [maintenanceRules, setMaintenanceRules] = useState<MaintenanceRule[]>([]);
+  const [consumables, setConsumables] = useState<Consumable[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
 
@@ -62,7 +71,17 @@ export default function ItemDetailScreen() {
     if (maintenanceService) {
       setMaintenanceRules(maintenanceService.listByItem(id));
     }
-  }, [inventory, warrantyService, documentService, maintenanceService, id]);
+    if (consumableService) {
+      setConsumables(consumableService.listByItem(id));
+    }
+  }, [
+    inventory,
+    warrantyService,
+    documentService,
+    maintenanceService,
+    consumableService,
+    id,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -280,6 +299,93 @@ export default function ItemDetailScreen() {
               onPress={() =>
                 router.push({
                   pathname: '/maintenance/add',
+                  params: { itemId: item.id },
+                })
+              }
+              style={styles.sectionBtn}
+            />
+          </Card>
+
+          <Card style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Расходники
+            </Text>
+            {consumables.length === 0 ? (
+              <>
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                  Расходники не добавлены
+                </Text>
+                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                  Следите за фильтрами, картриджами, батарейками и другими
+                  заменяемыми деталями.
+                </Text>
+              </>
+            ) : (
+              consumables.map((c) => (
+                <ConsumableCard
+                  key={c.id}
+                  consumable={c}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/consumable/[id]',
+                      params: { id: c.id },
+                    })
+                  }
+                  onMarkReplaced={() => {
+                    if (!consumableService || markingId) return;
+                    setMarkingId(c.id);
+                    const run = (allowZero: boolean) =>
+                      void consumableService
+                        .markReplaced(c.id, toLocalDateOnly(), null, {
+                          allowZeroStock: allowZero,
+                        })
+                        .then((result) => {
+                          const next = result.consumable.nextDueDate
+                            ? formatRussianDate(result.consumable.nextDueDate)
+                            : null;
+                          Alert.alert(
+                            'Готово',
+                            next
+                              ? `Замена отмечена\nСледующая замена — ${next}`
+                              : 'Замена отмечена',
+                          );
+                          load();
+                        })
+                        .catch((err) => {
+                          if (
+                            err instanceof AppError &&
+                            err.code === 'STOCK_ZERO_CONFIRM'
+                          ) {
+                            Alert.alert(
+                              'В запасе указано 0 шт.',
+                              'Отметить замену всё равно?',
+                              [
+                                { text: 'Отмена', style: 'cancel' },
+                                {
+                                  text: 'Отметить',
+                                  onPress: () => run(true),
+                                },
+                              ],
+                            );
+                            return;
+                          }
+                          Alert.alert('Ошибка', 'Не удалось отметить замену');
+                        })
+                        .finally(() => setMarkingId(null));
+                    run(false);
+                  }}
+                  marking={markingId === c.id}
+                />
+              ))
+            )}
+            <Button
+              title={
+                consumables.length === 0 ? 'Добавить расходник' : '+ Добавить'
+              }
+              variant="secondary"
+              onPress={() =>
+                router.push({
+                  pathname: '/consumable/add',
                   params: { itemId: item.id },
                 })
               }

@@ -69,6 +69,16 @@ export class ReminderRepository {
     return rows.map(mapRow);
   }
 
+  listByMaintenanceRuleId(ruleId: string): Reminder[] {
+    const rows = this.db.getAll<ReminderRow>(
+      `SELECT * FROM reminders
+       WHERE maintenance_rule_id = ? AND reminder_type = 'maintenance'
+       ORDER BY due_at ASC`,
+      [ruleId],
+    );
+    return rows.map(mapRow);
+  }
+
   listNotificationIdsByItemId(itemId: string): string[] {
     return this.db
       .getAll<{ notification_id: string }>(
@@ -122,6 +132,16 @@ export class ReminderRepository {
     this.db.run(
       `DELETE FROM reminders WHERE warranty_id = ? AND reminder_type = 'warranty'`,
       [warrantyId],
+    );
+    return existing;
+  }
+
+  deleteByMaintenanceRuleId(ruleId: string): Reminder[] {
+    const existing = this.listByMaintenanceRuleId(ruleId);
+    this.db.run(
+      `DELETE FROM reminders
+       WHERE maintenance_rule_id = ? AND reminder_type = 'maintenance'`,
+      [ruleId],
     );
     return existing;
   }

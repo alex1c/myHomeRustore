@@ -61,7 +61,7 @@ describe('integrity', () => {
       maintenance.createEvent({
         itemId: dryer.id,
         maintenanceRuleId: rule.id,
-        performedAt: NOW,
+        performedDate: '2024-06-01',
       }),
     ).toThrow();
   });
@@ -126,7 +126,11 @@ describe('integrity', () => {
     const item = new ItemRepository(db).createItem({ propertyId: home.id, name: 'Boiler' });
     const maintenance = new MaintenanceRepository(db);
     const rule = maintenance.createRule({ itemId: item.id, title: 'Service' });
-    const event = maintenance.createEvent({ itemId: item.id, maintenanceRuleId: rule.id, performedAt: NOW });
+    const event = maintenance.createEvent({
+      itemId: item.id,
+      maintenanceRuleId: rule.id,
+      performedDate: '2024-06-01',
+    });
 
     db.run('DELETE FROM maintenance_rules WHERE id = ?', [rule.id]);
 

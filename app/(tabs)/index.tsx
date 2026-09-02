@@ -4,7 +4,7 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -12,23 +12,32 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import type { ItemListRow } from '@/src/domain/inventory';
 import type { WarrantyAttentionRow } from '@/src/repositories/warrantyRepository';
+import type { MaintenanceListRow } from '@/src/repositories/maintenanceRepository';
 import { WARRANTY_EXPIRING_SOON_DAYS } from '@/src/domain/warranty';
+import { MAINTENANCE_TODAY_AHEAD_DAYS } from '@/src/domain/maintenance';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { useThemeColors } from '@/src/theme/useThemeColors';
 import { spacing, typography } from '@/src/theme/tokens';
 import { toLocalDateOnly } from '@/src/utils/datetime';
 import { warrantyTypeLabel } from '@/src/utils/warrantyPresentation';
+import { presentMaintenanceStatus } from '@/src/utils/maintenancePresentation';
+import { formatRussianDate } from '@/src/utils/formatDate';
 
 export default function TodayScreen() {
   const router = useRouter();
-  const { ready, error, inventory, locations, warranties } = useDatabase();
+  const { ready, error, inventory, locations, warranties, maintenanceService } =
+    useDatabase();
   const { property, propertyId } = useActiveProperty();
   const colors = useThemeColors();
   const [itemCount, setItemCount] = useState(0);
   const [locationCount, setLocationCount] = useState(0);
   const [recent, setRecent] = useState<ItemListRow[]>([]);
   const [attention, setAttention] = useState<WarrantyAttentionRow[]>([]);
+  const [maintenanceAttention, setMaintenanceAttention] = useState<
+    MaintenanceListRow[]
+  >([]);
+  const [markingId, setMarkingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!ready || !inventory || !locations || !propertyId) return;
@@ -45,7 +54,15 @@ export default function TodayScreen() {
         ),
       );
     }
-  }, [ready, inventory, locations, warranties, propertyId]);
+    if (maintenanceService) {
+      setMaintenanceAttention(
+        maintenanceService.listAttentionForProperty(
+          propertyId,
+          MAINTENANCE_TODAY_AHEAD_DAYS,
+        ),
+      );
+    }
+  }, [ready, inventory, locations, warranties, maintenanceService, propertyId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -122,6 +139,69 @@ export default function TodayScreen() {
               </Text>
             </Pressable>
           ))}
+        </>
+      ) : null}
+
+      {maintenanceAttention.length > 0 ? (
+        <>
+          <Text style={[styles.section, { color: colors.text }]}>Обслуживание</Text>
+          {maintenanceAttention.map((row) => {
+            const status = presentMaintenanceStatus(row.rule.nextDueDate);
+            return (
+              <Pressable
+                key={row.rule.id}
+                onPress={() =>
+                  router.push({
+                    pathname: '/maintenance/[id]',
+                    params: { id: row.rule.id },
+                  })
+                }
+                onLongPress={() => {
+                  if (!maintenanceService || markingId) return;
+                  setMarkingId(row.rule.id);
+                  void maintenanceService
+                    .markDone(row.rule.id)
+                    .then((result) => {
+                      const next = result.rule.nextDueDate
+                        ? formatRussianDate(result.rule.nextDueDate)
+                        : null;
+                      Alert.alert(
+                        'Готово',
+                        next
+                          ? `Отмечено выполненным\nСледующее обслуживание — ${next}`
+                          : 'Отмечено выполненным',
+                      );
+                      load();
+                    })
+                    .catch(() => {
+                      Alert.alert('Ошибка', 'Не удалось отметить выполнение');
+                    })
+                    .finally(() => setMarkingId(null));
+                }}
+                style={({ pressed }) => [
+                  styles.attentionRow,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                    opacity: pressed ? 0.9 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.attentionMeta, { color: colors.textMuted }]}>
+                  {status.label}
+                </Text>
+                <Text style={[styles.attentionTitle, { color: colors.text }]}>
+                  {row.rule.title}
+                </Text>
+                <Text
+                  style={[styles.attentionItem, { color: colors.textSecondary }]}
+                  numberOfLines={1}
+                >
+                  {row.itemName}
+                </Text>
+              </Pressable>
+            );
+          })}
         </>
       ) : null}
 

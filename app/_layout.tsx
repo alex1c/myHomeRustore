@@ -86,6 +86,9 @@ function RootLayoutNav() {
           <Stack.Screen name="warranty/edit/[id]" options={{ title: 'Редактировать гарантию' }} />
           <Stack.Screen name="document/add" options={{ title: 'Добавить документ' }} />
           <Stack.Screen name="document/[id]" options={{ title: 'Документ' }} />
+          <Stack.Screen name="maintenance/add" options={{ title: 'Добавить обслуживание' }} />
+          <Stack.Screen name="maintenance/[id]" options={{ title: 'Обслуживание' }} />
+          <Stack.Screen name="maintenance/edit/[id]" options={{ title: 'Редактировать' }} />
         </Stack>
       </ThemeProvider>
     </DatabaseProvider>

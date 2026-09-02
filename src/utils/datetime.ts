@@ -57,3 +57,54 @@ export function addDaysToDateOnly(dateOnly: DateOnly, deltaDays: number): DateOn
   dt.setDate(dt.getDate() + deltaDays);
   return toLocalDateOnly(dt);
 }
+
+/**
+ * Add calendar months with month-end clamping.
+ * Example: 2026-01-31 + 1 month → 2026-02-28.
+ * Shared by warranties, maintenance, and future consumables.
+ */
+export function addMonthsToDateOnly(dateOnly: DateOnly, months: number): DateOnly {
+  if (!isValidDateOnly(dateOnly)) {
+    throw new Error(`Invalid date-only value: ${dateOnly}`);
+  }
+  if (!Number.isInteger(months)) {
+    throw new Error(`Months must be an integer, got: ${months}`);
+  }
+
+  const [yStr, mStr, dStr] = dateOnly.split('-');
+  const startYear = Number(yStr);
+  const startMonthIndex = Number(mStr) - 1;
+  const startDay = Number(dStr);
+
+  const totalMonths = startMonthIndex + months;
+  const targetYear = startYear + Math.floor(totalMonths / 12);
+  const normalizedMonthIndex = ((totalMonths % 12) + 12) % 12;
+
+  const lastDayOfTargetMonth = new Date(
+    targetYear,
+    normalizedMonthIndex + 1,
+    0,
+    12,
+    0,
+    0,
+    0,
+  ).getDate();
+  const clampedDay = Math.min(startDay, lastDayOfTargetMonth);
+
+  const result = new Date(targetYear, normalizedMonthIndex, clampedDay, 12, 0, 0, 0);
+  return toLocalDateOnly(result);
+}
+
+/** Store a calendar date as a noon-UTC instant to avoid timezone day shifts. */
+export function dateOnlyToUtcNoon(dateOnly: DateOnly): UtcInstant {
+  if (!isValidDateOnly(dateOnly)) {
+    throw new Error(`Invalid date-only value: ${dateOnly}`);
+  }
+  return `${dateOnly}T12:00:00.000Z`;
+}
+
+/** Extract YYYY-MM-DD from a stored UTC instant (first 10 chars). */
+export function utcInstantToDateOnly(instant: string): DateOnly | null {
+  const candidate = instant.slice(0, 10);
+  return isValidDateOnly(candidate) ? candidate : null;
+}

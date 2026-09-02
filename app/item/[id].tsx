@@ -20,8 +20,9 @@ import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
 import { DocumentCard } from '@/components/documents/DocumentCard';
 import { WarrantyCard } from '@/components/warranty/WarrantyCard';
+import { MaintenanceCard } from '@/components/maintenance/MaintenanceCard';
 import type { ItemDetail } from '@/src/domain/inventory';
-import type { Document, Warranty } from '@/src/domain/types';
+import type { Document, MaintenanceRule, Warranty } from '@/src/domain/types';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { managedUriFromRelativePath } from '@/src/services/managedFileService';
 import { useThemeColors } from '@/src/theme/useThemeColors';
@@ -29,16 +30,25 @@ import { spacing, typography } from '@/src/theme/tokens';
 import { formatRussianDate } from '@/src/utils/formatDate';
 import { buildBrandModelLine } from '@/src/utils/itemPresentation';
 import { formatRubMinor } from '@/src/utils/money';
+import { toLocalDateOnly } from '@/src/utils/datetime';
 
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const colors = useThemeColors();
-  const { inventory, itemDeletion, warrantyService, documentService } = useDatabase();
+  const {
+    inventory,
+    itemDeletion,
+    warrantyService,
+    documentService,
+    maintenanceService,
+  } = useDatabase();
   const [detail, setDetail] = useState<ItemDetail | null>(null);
   const [warranties, setWarranties] = useState<Warranty[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [maintenanceRules, setMaintenanceRules] = useState<MaintenanceRule[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [markingId, setMarkingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!inventory || !id) return;
@@ -49,7 +59,10 @@ export default function ItemDetailScreen() {
     if (documentService) {
       setDocuments(documentService.listByItem(id));
     }
-  }, [inventory, warrantyService, documentService, id]);
+    if (maintenanceService) {
+      setMaintenanceRules(maintenanceService.listByItem(id));
+    }
+  }, [inventory, warrantyService, documentService, maintenanceService, id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -203,6 +216,73 @@ export default function ItemDetailScreen() {
               title="Добавить гарантию"
               variant="secondary"
             onPress={() => router.push({ pathname: '/warranty/add', params: { itemId: item.id } })}
+              style={styles.sectionBtn}
+            />
+          </Card>
+
+          <Card style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Обслуживание
+            </Text>
+            {maintenanceRules.length === 0 ? (
+              <>
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                  Обслуживание не настроено
+                </Text>
+                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                  Добавьте регулярные работы, чтобы «Мой дом» напоминал о них.
+                </Text>
+              </>
+            ) : (
+              maintenanceRules.map((rule) => (
+                <MaintenanceCard
+                  key={rule.id}
+                  rule={rule}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/maintenance/[id]',
+                      params: { id: rule.id },
+                    })
+                  }
+                  onMarkDone={() => {
+                    if (!maintenanceService || markingId) return;
+                    setMarkingId(rule.id);
+                    void maintenanceService
+                      .markDone(rule.id, toLocalDateOnly())
+                      .then((result) => {
+                        const next = result.rule.nextDueDate
+                          ? formatRussianDate(result.rule.nextDueDate)
+                          : null;
+                        Alert.alert(
+                          'Готово',
+                          next
+                            ? `Отмечено выполненным\nСледующее обслуживание — ${next}`
+                            : 'Отмечено выполненным',
+                        );
+                        load();
+                      })
+                      .catch(() => {
+                        Alert.alert('Ошибка', 'Не удалось отметить выполнение');
+                      })
+                      .finally(() => setMarkingId(null));
+                  }}
+                  markingDone={markingId === rule.id}
+                />
+              ))
+            )}
+            <Button
+              title={
+                maintenanceRules.length === 0
+                  ? 'Добавить обслуживание'
+                  : '+ Добавить'
+              }
+              variant="secondary"
+              onPress={() =>
+                router.push({
+                  pathname: '/maintenance/add',
+                  params: { itemId: item.id },
+                })
+              }
               style={styles.sectionBtn}
             />
           </Card>

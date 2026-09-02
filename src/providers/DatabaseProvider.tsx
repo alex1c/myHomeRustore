@@ -32,6 +32,7 @@ import {
   type NotificationAdapter,
 } from '@/src/services/notificationAdapter';
 import { WarrantyService } from '@/src/services/warrantyService';
+import { MaintenanceService } from '@/src/services/maintenanceService';
 
 export type DatabaseContextValue = {
   ready: boolean;
@@ -51,6 +52,7 @@ export type DatabaseContextValue = {
   reminders: ReminderRepository | null;
   warrantyService: WarrantyService | null;
   documentService: DocumentService | null;
+  maintenanceService: MaintenanceService | null;
   notifications: NotificationAdapter | null;
 };
 
@@ -104,6 +106,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         reminders: null,
         warrantyService: null,
         documentService: null,
+        maintenanceService: null,
         notifications: null,
       };
     }
@@ -128,6 +131,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       reminders: new ReminderRepository(db),
       warrantyService: new WarrantyService(db, notifications),
       documentService: new DocumentService(db),
+      maintenanceService: new MaintenanceService(db, notifications),
       notifications,
     };
   }, [db, error]);

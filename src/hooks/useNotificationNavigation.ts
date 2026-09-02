@@ -13,8 +13,22 @@ function navigateFromNotificationData(
   data: Record<string, unknown> | undefined,
 ): void {
   const warrantyId = typeof data?.warrantyId === 'string' ? data.warrantyId : null;
+  const maintenanceRuleId =
+    typeof data?.maintenanceRuleId === 'string' ? data.maintenanceRuleId : null;
   const itemId = typeof data?.itemId === 'string' ? data.itemId : null;
 
+  if (
+    maintenanceRuleId &&
+    db?.getFirst('SELECT id FROM maintenance_rules WHERE id = ?', [
+      maintenanceRuleId,
+    ])
+  ) {
+    router.push({
+      pathname: '/maintenance/[id]',
+      params: { id: maintenanceRuleId },
+    });
+    return;
+  }
   if (warrantyId && db?.getFirst('SELECT id FROM warranties WHERE id = ?', [warrantyId])) {
     router.push({ pathname: '/warranty/[id]', params: { id: warrantyId } });
     return;

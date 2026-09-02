@@ -37,7 +37,9 @@ export class ExpoNotificationAdapter implements NotificationAdapter {
     if (current.granted) {
       return true;
     }
-    if (current.canAskAgain === false) {
+    // A prior denial is a deliberate user choice. Do not immediately ask again
+    // on every later warranty save, even when Android still reports canAskAgain.
+    if (current.status === 'denied' || current.canAskAgain === false) {
       return false;
     }
     const requested = await Notifications.requestPermissionsAsync();

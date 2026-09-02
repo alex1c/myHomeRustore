@@ -21,7 +21,7 @@ describe('migrations', () => {
   test('fresh DB reaches current schema version', async () => {
     const db = await openTestDb();
     expect(db.getUserVersion()).toBe(CURRENT_SCHEMA_VERSION);
-    expect(getExpectedSchemaVersion()).toBe(1);
+    expect(getExpectedSchemaVersion()).toBe(2);
   });
 
   test('core tables exist after migration', async () => {
@@ -93,7 +93,9 @@ describe('migrations', () => {
     const SQL = await initSqlJs();
     const adapter = createSqlJsAdapter(new SQL.Database());
     adapter.exec('CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT, applied_at TEXT)');
-    adapter.setUserVersion(1);
+    adapter.run("INSERT INTO schema_migrations VALUES (1, 'wrong', '2026-01-01T00:00:00.000Z')");
+    adapter.run("INSERT INTO schema_migrations VALUES (2, '002_warranty_integrity', '2026-01-01T00:00:00.000Z')");
+    adapter.setUserVersion(2);
     expect(() => runMigrations(adapter)).toThrow('Migration history mismatch');
   });
 

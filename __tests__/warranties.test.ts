@@ -156,4 +156,39 @@ describe('warranties', () => {
     });
     expect(w.provider).toBeNull();
   });
+
+  test.each([
+    { startDate: null, endDate: null, durationMonths: null },
+    { startDate: null, endDate: null, durationMonths: 12 },
+    { startDate: 'bad-date', endDate: '2027-01-01', durationMonths: null },
+    { startDate: '2027-02-01', endDate: '2027-01-01', durationMonths: null },
+    { startDate: '2026-01-01', endDate: null, durationMonths: 1.5 },
+  ])('repository rejects invalid warranty dates %#', async (dates) => {
+    const db = await openTestDb();
+    const item = await seedItem(db);
+    expect(() => new WarrantyRepository(db).create({
+      itemId: item.id,
+      type: 'manufacturer',
+      ...dates,
+    })).toThrow();
+  });
+
+  test('Today attention includes exactly plus/minus 30 day boundaries', async () => {
+    const db = await openTestDb();
+    const item = await seedItem(db);
+    const warranties = new WarrantyRepository(db);
+    for (const [id, endDate] of [
+      ['past31', '2026-08-01'], ['past30', '2026-08-02'],
+      ['today', '2026-09-01'], ['future30', '2026-10-01'],
+      ['future31', '2026-10-02'],
+    ]) {
+      db.run(
+        `INSERT INTO warranties (id,item_id,type,end_date,created_at,updated_at)
+         VALUES (?,?,'manufacturer',?,?,?)`,
+        [id, item.id, endDate, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'],
+      );
+    }
+    const rows = warranties.listAttentionForProperty(item.propertyId, 30, 30, '2026-09-01');
+    expect(rows.map((row) => row.warranty.id)).toEqual(['past30', 'today', 'future30']);
+  });
 });

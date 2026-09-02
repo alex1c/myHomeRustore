@@ -7,7 +7,7 @@ import { createEntityIdSync } from '@/src/domain/ids';
 import type { Warranty } from '@/src/domain/types';
 import type { WarrantyType } from '@/src/domain/warranty';
 import type { SqlDatabase } from '@/src/db/types';
-import { nowUtcInstant } from '@/src/utils/datetime';
+import { isValidDateOnly, nowUtcInstant } from '@/src/utils/datetime';
 import { resolveWarrantyEndDate } from '@/src/utils/warrantyDate';
 
 type WarrantyRow = {
@@ -88,7 +88,7 @@ export class WarrantyRepository {
   }
 
   create(input: WarrantyCreateInput): Warranty {
-    this.validateDurationEnd(input.endDate ?? null, input.durationMonths ?? null);
+    this.validateDates(input.startDate ?? null, input.endDate ?? null, input.durationMonths ?? null);
 
     const id = createEntityIdSync();
     const now = nowUtcInstant();
@@ -129,7 +129,8 @@ export class WarrantyRepository {
         ? input.durationMonths
         : existing.durationMonths;
 
-    this.validateDurationEnd(endDate, durationMonths);
+    const startDate = input.startDate !== undefined ? input.startDate : existing.startDate;
+    this.validateDates(startDate, endDate, durationMonths);
 
     const now = nowUtcInstant();
     this.db.run(
@@ -145,7 +146,7 @@ export class WarrantyRepository {
       [
         input.type ?? existing.type,
         input.provider !== undefined ? input.provider : existing.provider,
-        input.startDate !== undefined ? input.startDate : existing.startDate,
+        startDate,
         endDate,
         durationMonths,
         input.note !== undefined ? input.note : existing.note,
@@ -203,6 +204,31 @@ export class WarrantyRepository {
     }
 
     return result.sort((a, b) => a.daysUntilEnd - b.daysUntilEnd);
+  }
+
+  private validateDates(
+    startDate: string | null,
+    endDate: string | null,
+    durationMonths: number | null,
+  ): void {
+    if ((endDate == null) === (durationMonths == null)) {
+      throw new AppError('Укажите либо срок гарантии, либо дату окончания');
+    }
+    if (startDate != null && !isValidDateOnly(startDate)) {
+      throw new AppError('Некорректная дата начала гарантии');
+    }
+    if (endDate != null && !isValidDateOnly(endDate)) {
+      throw new AppError('Некорректная дата окончания гарантии');
+    }
+    if (durationMonths != null && (!Number.isInteger(durationMonths) || durationMonths <= 0)) {
+      throw new AppError('Срок гарантии должен быть целым числом больше нуля');
+    }
+    if (durationMonths != null && startDate == null) {
+      throw new AppError('Для срока в месяцах укажите дату начала гарантии');
+    }
+    if (startDate != null && endDate != null && startDate > endDate) {
+      throw new AppError('Дата окончания не может быть раньше даты начала');
+    }
   }
 
   private validateDurationEnd(

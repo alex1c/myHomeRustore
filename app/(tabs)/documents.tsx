@@ -110,7 +110,7 @@ export default function DocumentsScreen() {
             <DocumentCard
               document={row.document}
               itemName={row.itemName}
-              onPress={() => router.push(`/document/${row.document.id}`)}
+              onPress={() => router.push({ pathname: '/document/[id]', params: { id: row.document.id } })}
             />
           )}
           contentContainerStyle={styles.list}
@@ -122,12 +122,7 @@ export default function DocumentsScreen() {
           <Button
             title="Выбрать вещь"
             variant="secondary"
-            onPress={() => {
-              const first = itemOptions[0];
-              if (first) {
-                router.push(`/document/add?itemId=${first.item.id}`);
-              }
-            }}
+            onPress={() => router.push('/items')}
           />
         </View>
       ) : null}

@@ -10,7 +10,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
-import { DatabaseProvider } from '@/src/providers/DatabaseProvider';
+import { DatabaseProvider, useDatabase } from '@/src/providers/DatabaseProvider';
 import { useNotificationNavigation } from '@/src/hooks/useNotificationNavigation';
 import { darkColors, lightColors } from '@/src/theme/tokens';
 
@@ -70,10 +70,10 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  useNotificationNavigation();
 
   return (
     <DatabaseProvider>
+      <NotificationNavigationObserver />
       <ThemeProvider value={colorScheme === 'dark' ? DarkNavTheme : LightNavTheme}>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         <Stack>
@@ -90,4 +90,10 @@ function RootLayoutNav() {
       </ThemeProvider>
     </DatabaseProvider>
   );
+}
+
+function NotificationNavigationObserver() {
+  const { db } = useDatabase();
+  useNotificationNavigation(db);
+  return null;
 }

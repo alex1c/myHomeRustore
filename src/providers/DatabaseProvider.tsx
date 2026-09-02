@@ -119,7 +119,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       items: new ItemRepository(db),
       maintenance: new MaintenanceRepository(db),
       settings: new SettingsRepository(db),
-      itemDeletion: new ItemDeletionService(db),
+      itemDeletion: new ItemDeletionService(db, notifications),
       inventory: new InventoryService(db),
       itemPhotos: new ItemPhotoService(db),
       purchases: new PurchaseRepository(db),

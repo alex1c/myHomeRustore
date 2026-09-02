@@ -37,6 +37,9 @@ export class ExpoNotificationAdapter implements NotificationAdapter {
     if (current.granted) {
       return true;
     }
+    if (current.canAskAgain === false) {
+      return false;
+    }
     const requested = await Notifications.requestPermissionsAsync();
     return requested.granted === true;
   }

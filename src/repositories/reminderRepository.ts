@@ -69,6 +69,16 @@ export class ReminderRepository {
     return rows.map(mapRow);
   }
 
+  listNotificationIdsByItemId(itemId: string): string[] {
+    return this.db
+      .getAll<{ notification_id: string }>(
+        `SELECT notification_id FROM reminders
+         WHERE item_id = ? AND notification_id IS NOT NULL`,
+        [itemId],
+      )
+      .map((row) => row.notification_id);
+  }
+
   create(input: ReminderCreateInput): Reminder {
     const id = createEntityIdSync();
     const now = nowUtcInstant();

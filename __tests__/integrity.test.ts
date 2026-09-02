@@ -77,7 +77,7 @@ describe('integrity', () => {
     db.run(
       `INSERT INTO warranties
        (id, item_id, type, provider, start_date, end_date, duration_months, note, created_at, updated_at)
-       VALUES (?, ?, 'manufacturer', 'Shop', NULL, NULL, NULL, NULL, ?, ?)`,
+       VALUES (?, ?, 'manufacturer', 'Shop', NULL, '2027-01-01', NULL, NULL, ?, ?)`,
       ['w-1', item.id, NOW, NOW],
     );
 
@@ -105,7 +105,7 @@ describe('integrity', () => {
     const item = new ItemRepository(db).createItem({ propertyId: home.id, name: 'Boiler' });
 
     db.run(`INSERT INTO purchases (id,item_id,currency,created_at,updated_at) VALUES ('p',?,'RUB',?,?)`, [item.id, NOW, NOW]);
-    db.run(`INSERT INTO warranties (id,item_id,type,created_at,updated_at) VALUES ('w',?,'manufacturer',?,?)`, [item.id, NOW, NOW]);
+    db.run(`INSERT INTO warranties (id,item_id,type,end_date,created_at,updated_at) VALUES ('w',?,'manufacturer','2027-01-01',?,?)`, [item.id, NOW, NOW]);
     db.run(`INSERT INTO documents (id,item_id,type,title,file_path,created_at,updated_at) VALUES ('d',?,'manual','Manual','documents/d.pdf',?,?)`, [item.id, NOW, NOW]);
     db.run(`INSERT INTO maintenance_rules (id,item_id,title,created_at,updated_at) VALUES ('mr',?,'Service',?,?)`, [item.id, NOW, NOW]);
     db.run(`INSERT INTO maintenance_events (id,item_id,maintenance_rule_id,performed_at,created_at,updated_at) VALUES ('me',?,'mr',?,?,?)`, [item.id, NOW, NOW, NOW]);
@@ -172,7 +172,7 @@ describe('integrity', () => {
     const items = new ItemRepository(db);
     const itemA = items.createItem({ propertyId: home.id, name: 'A' });
     const itemB = items.createItem({ propertyId: home.id, name: 'B' });
-    db.run(`INSERT INTO warranties (id,item_id,type,created_at,updated_at) VALUES ('w',?,'manufacturer',?,?)`, [itemB.id, NOW, NOW]);
+    db.run(`INSERT INTO warranties (id,item_id,type,end_date,created_at,updated_at) VALUES ('w',?,'manufacturer','2027-01-01',?,?)`, [itemB.id, NOW, NOW]);
     db.run(`INSERT INTO maintenance_rules (id,item_id,title,created_at,updated_at) VALUES ('mr',?,'Rule',?,?)`, [itemB.id, NOW, NOW]);
     db.run(`INSERT INTO consumables (id,item_id,name,created_at,updated_at) VALUES ('c',?,'Filter',?,?)`, [itemB.id, NOW, NOW]);
 
@@ -186,7 +186,7 @@ describe('integrity', () => {
     const db = await openTestDb();
     const home = new PropertyRepository(db).listProperties()[0]!;
     const item = new ItemRepository(db).createItem({ propertyId: home.id, name: 'A' });
-    db.run(`INSERT INTO warranties (id,item_id,type,created_at,updated_at) VALUES ('w',?,'manufacturer',?,?)`, [item.id, NOW, NOW]);
+    db.run(`INSERT INTO warranties (id,item_id,type,end_date,created_at,updated_at) VALUES ('w',?,'manufacturer','2027-01-01',?,?)`, [item.id, NOW, NOW]);
     db.run(`INSERT INTO maintenance_rules (id,item_id,title,created_at,updated_at) VALUES ('mr',?,'Rule',?,?)`, [item.id, NOW, NOW]);
 
     expect(() => db.run(
@@ -209,6 +209,24 @@ describe('integrity', () => {
     expect(() => db.run(
       `INSERT INTO documents (id,item_id,type,title,file_path,created_at,updated_at) VALUES ('bad',?,'manual','Bad','file:///tmp/a',?,?)`,
       [itemA.id, NOW, NOW],
+    )).toThrow();
+  });
+
+  test.each([
+    [null, null, null],
+    ['2026-01-01', '2027-01-01', 12],
+    [null, '2026-02-30', null],
+    ['2027-01-02', '2027-01-01', null],
+    ['2026-01-01', null, 0],
+  ])('database rejects invalid warranty state %#', async (start, end, months) => {
+    const db = await openTestDb();
+    const home = new PropertyRepository(db).listProperties()[0]!;
+    const item = new ItemRepository(db).createItem({ propertyId: home.id, name: 'TV' });
+    expect(() => db.run(
+      `INSERT INTO warranties
+       (id,item_id,type,start_date,end_date,duration_months,created_at,updated_at)
+       VALUES ('invalid',?,'manufacturer',?,?,?,?,?)`,
+      [item.id, start, end, months, NOW, NOW],
     )).toThrow();
   });
 });

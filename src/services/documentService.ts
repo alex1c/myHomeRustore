@@ -78,7 +78,11 @@ export class DocumentService {
         fileSize: input.file.fileSize ?? null,
       });
     } catch (err) {
-      await deleteManagedFileByRelativePath(relativePath);
+      try {
+        await deleteManagedFileByRelativePath(relativePath);
+      } catch {
+        // Preserve the DB error; managed cleanup is best effort.
+      }
       throw err;
     }
   }

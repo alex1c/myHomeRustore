@@ -131,7 +131,7 @@ export default function DocumentDetailScreen() {
           <Button
             title="Открыть вещь"
             variant="secondary"
-            onPress={() => router.push(`/item/${document.itemId}`)}
+            onPress={() => router.push({ pathname: '/item/[id]', params: { id: document.itemId } })}
             style={styles.secondary}
           />
         </ScrollView>

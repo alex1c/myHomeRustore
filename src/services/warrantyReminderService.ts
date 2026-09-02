@@ -82,8 +82,9 @@ export class WarrantyReminderService {
       return { permissionDenied: true, scheduledCount: 0, failedCount: 0 };
     }
 
-    const futureOffsets = offsets.filter((offset) =>
-      isFutureWarrantyReminderOffset(endDate, offset),
+    const futureOffsets = [...new Set(offsets)].filter(
+      (offset) => Number.isInteger(offset) && offset > 0 &&
+        isFutureWarrantyReminderOffset(endDate, offset),
     );
 
     let scheduledCount = 0;
@@ -93,30 +94,34 @@ export class WarrantyReminderService {
       const fireAt = warrantyReminderFireDate(endDate, offset);
       const dueAt = fireAt.toISOString();
 
-      const reminder = this.reminders.create({
-        itemId: warranty.itemId,
-        reminderType: 'warranty',
-        warrantyId: warranty.id,
-        dueAt,
-        enabled: true,
-        notificationId: null,
-      });
-
+      let notificationId: string | null = null;
       try {
-        const notificationId = await this.notifications.schedule({
+        notificationId = await this.notifications.schedule({
           title: 'Скоро закончится гарантия',
           body: buildWarrantyReminderBody(itemName, endDate, offset),
           fireAt,
           data: {
             itemId: warranty.itemId,
             warrantyId: warranty.id,
-            reminderId: reminder.id,
           },
         });
-        this.reminders.updateNotificationState(reminder.id, notificationId, true);
+        this.reminders.create({
+          itemId: warranty.itemId,
+          reminderType: 'warranty',
+          warrantyId: warranty.id,
+          dueAt,
+          enabled: true,
+          notificationId,
+        });
         scheduledCount += 1;
       } catch {
-        this.reminders.delete(reminder.id);
+        if (notificationId) {
+          try {
+            await this.notifications.cancel(notificationId);
+          } catch {
+            // Best effort: DB never claims an unpersisted notification exists.
+          }
+        }
         failedCount += 1;
       }
     }

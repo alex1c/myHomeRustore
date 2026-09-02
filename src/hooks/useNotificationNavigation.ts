@@ -5,30 +5,36 @@
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
+import type { SqlDatabase } from '@/src/db/types';
 
 function navigateFromNotificationData(
   router: ReturnType<typeof useRouter>,
+  db: SqlDatabase | null,
   data: Record<string, unknown> | undefined,
 ): void {
   const warrantyId = typeof data?.warrantyId === 'string' ? data.warrantyId : null;
   const itemId = typeof data?.itemId === 'string' ? data.itemId : null;
 
-  if (warrantyId) {
-    router.push(`/warranty/${warrantyId}`);
+  if (warrantyId && db?.getFirst('SELECT id FROM warranties WHERE id = ?', [warrantyId])) {
+    router.push({ pathname: '/warranty/[id]', params: { id: warrantyId } });
     return;
   }
-  if (itemId) {
-    router.push(`/item/${itemId}`);
+  if (itemId && db?.getFirst('SELECT id FROM items WHERE id = ?', [itemId])) {
+    router.push({ pathname: '/item/[id]', params: { id: itemId } });
+    return;
   }
+  router.push('/(tabs)');
 }
 
-export function useNotificationNavigation(): void {
+export function useNotificationNavigation(db: SqlDatabase | null): void {
   const router = useRouter();
 
   useEffect(() => {
+    if (!db) return;
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       navigateFromNotificationData(
         router,
+        db,
         response.notification.request.content.data as Record<string, unknown>,
       );
     });
@@ -37,11 +43,12 @@ export function useNotificationNavigation(): void {
       if (response) {
         navigateFromNotificationData(
           router,
+          db,
           response.notification.request.content.data as Record<string, unknown>,
         );
       }
     });
 
     return () => sub.remove();
-  }, [router]);
+  }, [router, db]);
 }

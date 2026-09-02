@@ -171,7 +171,7 @@ export default function WarrantyDetailScreen() {
               {documents.map((doc) => (
                 <Pressable
                   key={doc.id}
-                  onPress={() => router.push(`/document/${doc.id}`)}
+                  onPress={() => router.push({ pathname: '/document/[id]', params: { id: doc.id } })}
                   style={styles.docRow}
                 >
                   <Text style={{ color: colors.text, ...typography.body }}>
@@ -184,13 +184,13 @@ export default function WarrantyDetailScreen() {
 
           <Button
             title="Редактировать"
-            onPress={() => router.push(`/warranty/edit/${warranty.id}`)}
+            onPress={() => router.push({ pathname: '/warranty/edit/[id]', params: { id: warranty.id } })}
             style={styles.edit}
           />
           <Button
             title="Открыть вещь"
             variant="secondary"
-            onPress={() => router.push(`/item/${warranty.itemId}`)}
+            onPress={() => router.push({ pathname: '/item/[id]', params: { id: warranty.itemId } })}
           />
         </ScrollView>
       </Screen>

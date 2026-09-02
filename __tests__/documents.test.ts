@@ -11,6 +11,10 @@ import { InventoryService } from '@/src/services/inventoryService';
 import { DocumentService } from '@/src/services/documentService';
 import { DocumentRepository } from '@/src/repositories/documentRepository';
 import { ItemRepository } from '@/src/repositories/itemRepository';
+import { ReminderRepository } from '@/src/repositories/reminderRepository';
+import { WarrantyRepository } from '@/src/repositories/warrantyRepository';
+import { ItemDeletionService } from '@/src/services/itemDeletionService';
+import { MockNotificationAdapter } from '@/src/services/notificationAdapter';
 import { EMPTY_ITEM_FORM } from '@/src/domain/inventory';
 import * as managedFileService from '@/src/services/managedFileService';
 
@@ -176,6 +180,18 @@ describe('documents', () => {
     expect(deleteManagedFileByRelativePath).toHaveBeenCalledWith('documents/z.pdf');
   });
 
+  test('DB delete failure leaves the managed file untouched', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const item = await seedItem(db);
+    const documents = new DocumentRepository(db);
+    const doc = documents.create({ itemId: item.id, type: 'receipt', title: 'Receipt', filePath: 'documents/keep.pdf' });
+    jest.spyOn(DocumentRepository.prototype, 'delete').mockImplementationOnce(() => { throw new Error('DB failure'); });
+    await expect(new DocumentService(db).deleteDocument(doc.id)).rejects.toThrow('DB failure');
+    expect(deleteManagedFileByRelativePath).not.toHaveBeenCalled();
+    expect(documents.getById(doc.id)).not.toBeNull();
+  });
+
   test('item cascade removes documents', async () => {
     const SQL = await initSqlJs();
     const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
@@ -191,5 +207,25 @@ describe('documents', () => {
 
     new ItemRepository(db).deleteItem(item.id);
     expect(db.getFirst('SELECT id FROM documents LIMIT 1')).toBeNull();
+  });
+
+  test('item deletion cleans all files, cascades metadata, and cancels notifications', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const item = await seedItem(db);
+    db.run('UPDATE items SET primary_photo_path = ? WHERE id = ?', ['photos/main.jpg', item.id]);
+    new DocumentRepository(db).create({ itemId: item.id, type: 'receipt', title: 'Receipt', filePath: 'documents/receipt.jpg' });
+    new DocumentRepository(db).create({ itemId: item.id, type: 'warranty', title: 'Warranty', filePath: 'documents/warranty.pdf' });
+    const warranty = new WarrantyRepository(db).create({ itemId: item.id, type: 'manufacturer', endDate: '2027-01-01' });
+    new ReminderRepository(db).create({ itemId: item.id, reminderType: 'warranty', warrantyId: warranty.id, dueAt: '2026-12-01T06:00:00.000Z', notificationId: 'os-1' });
+    const notifications = new MockNotificationAdapter();
+    await new ItemDeletionService(db, notifications).deleteItemWithFiles(item.id);
+    expect(notifications.cancelled).toEqual(['os-1']);
+    expect(deleteManagedFileByRelativePath).toHaveBeenCalledWith('photos/main.jpg');
+    expect(deleteManagedFileByRelativePath).toHaveBeenCalledWith('documents/receipt.jpg');
+    expect(deleteManagedFileByRelativePath).toHaveBeenCalledWith('documents/warranty.pdf');
+    for (const table of ['items', 'documents', 'warranties', 'reminders']) {
+      expect(db.getFirst(`SELECT id FROM ${table} LIMIT 1`)).toBeNull();
+    }
   });
 });

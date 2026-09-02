@@ -195,14 +195,14 @@ export default function ItemDetailScreen() {
                 <WarrantyCard
                   key={w.id}
                   warranty={w}
-                  onPress={() => router.push(`/warranty/${w.id}`)}
+                  onPress={() => router.push({ pathname: '/warranty/[id]', params: { id: w.id } })}
                 />
               ))
             )}
             <Button
               title="Добавить гарантию"
               variant="secondary"
-              onPress={() => router.push(`/warranty/add?itemId=${item.id}`)}
+            onPress={() => router.push({ pathname: '/warranty/add', params: { itemId: item.id } })}
               style={styles.sectionBtn}
             />
           </Card>
@@ -218,7 +218,7 @@ export default function ItemDetailScreen() {
                 <DocumentCard
                   key={doc.id}
                   document={doc}
-                  onPress={() => router.push(`/document/${doc.id}`)}
+                  onPress={() => router.push({ pathname: '/document/[id]', params: { id: doc.id } })}
                 />
               ))
             )}
@@ -227,14 +227,14 @@ export default function ItemDetailScreen() {
                 title="Добавить чек"
                 variant="secondary"
                 onPress={() =>
-                  router.push(`/document/add?itemId=${item.id}&type=receipt`)
+              router.push({ pathname: '/document/add', params: { itemId: item.id, type: 'receipt' } })
                 }
                 style={styles.docBtn}
               />
               <Button
                 title="Добавить документ"
                 variant="ghost"
-                onPress={() => router.push(`/document/add?itemId=${item.id}`)}
+            onPress={() => router.push({ pathname: '/document/add', params: { itemId: item.id } })}
                 style={styles.docBtn}
               />
             </View>

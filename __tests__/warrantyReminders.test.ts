@@ -162,4 +162,86 @@ describe('warrantyReminders', () => {
     expect(notifications.scheduled).toHaveLength(0);
     expect(db.getFirst('SELECT id FROM reminders LIMIT 1')).toBeNull();
   });
+
+  test('duplicate offsets do not create duplicate notifications', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const item = await seedItem(db);
+    const notifications = new MockNotificationAdapter();
+    await new WarrantyService(db, notifications).create(item.id, {
+      ...EMPTY_WARRANTY_FORM,
+      startDate: null,
+      endDate: endDateDaysFromNow(60),
+      durationMonths: null,
+      reminderOffsets: [30, 30, 7, 7],
+      remindersEnabled: true,
+    });
+    expect(notifications.scheduled).toHaveLength(2);
+  });
+
+  test('partial scheduling failure keeps only real tracked notification ids', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const item = await seedItem(db);
+    const notifications = new MockNotificationAdapter();
+    const original = notifications.schedule.bind(notifications);
+    let calls = 0;
+    jest.spyOn(notifications, 'schedule').mockImplementation(async (input) => {
+      calls += 1;
+      if (calls === 2) throw new Error('OS failure');
+      return original(input);
+    });
+    const result = await new WarrantyService(db, notifications).create(item.id, {
+      ...EMPTY_WARRANTY_FORM,
+      startDate: null,
+      endDate: endDateDaysFromNow(60),
+      durationMonths: null,
+      reminderOffsets: [30, 7],
+      remindersEnabled: true,
+    });
+    expect(result.reminders).toMatchObject({ scheduledCount: 1, failedCount: 1 });
+    const rows = new ReminderRepository(db).listByWarrantyId(result.warranty.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.notificationId).toBe(notifications.scheduled[0]!.id);
+  });
+
+  test('cancel failure does not block warranty deletion', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const item = await seedItem(db);
+    const notifications = new MockNotificationAdapter();
+    const service = new WarrantyService(db, notifications);
+    const created = await service.create(item.id, {
+      ...EMPTY_WARRANTY_FORM,
+      startDate: null,
+      endDate: endDateDaysFromNow(60),
+      durationMonths: null,
+      reminderOffsets: [30],
+      remindersEnabled: true,
+    });
+    jest.spyOn(notifications, 'cancel').mockRejectedValue(new Error('OS failure'));
+    await expect(service.delete(created.warranty.id)).resolves.toBeUndefined();
+    expect(service.getById(created.warranty.id)).toBeNull();
+  });
+
+  test('DB persistence failure cancels the newly scheduled OS notification', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const item = await seedItem(db);
+    const notifications = new MockNotificationAdapter();
+    jest.spyOn(ReminderRepository.prototype, 'create').mockImplementationOnce(() => {
+      throw new Error('DB failure');
+    });
+    const result = await new WarrantyService(db, notifications).create(item.id, {
+      ...EMPTY_WARRANTY_FORM,
+      startDate: null,
+      endDate: endDateDaysFromNow(60),
+      durationMonths: null,
+      reminderOffsets: [30],
+      remindersEnabled: true,
+    });
+    expect(result.reminders).toMatchObject({ scheduledCount: 0, failedCount: 1 });
+    expect(notifications.cancelled).toEqual([notifications.scheduled[0]!.id]);
+    expect(db.getFirst('SELECT id FROM reminders LIMIT 1')).toBeNull();
+  });
 });

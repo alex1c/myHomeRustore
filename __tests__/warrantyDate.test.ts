@@ -8,7 +8,7 @@ import {
   daysUntilDateOnly,
   resolveWarrantyEndDate,
 } from '@/src/utils/warrantyDate';
-import { toLocalDateOnly } from '@/src/utils/datetime';
+import { addDaysToDateOnly, toLocalDateOnly } from '@/src/utils/datetime';
 
 describe('warrantyDate', () => {
   test('month-end clamp: 2026-01-31 + 1 month', () => {
@@ -21,6 +21,14 @@ describe('warrantyDate', () => {
 
   test('2026-08-31 + 6 months', () => {
     expect(addMonthsToDateOnly('2026-08-31', 6)).toBe('2027-02-28');
+  });
+
+  test.each([
+    ['2026-03-31', 1, '2026-04-30'],
+    ['2026-12-31', 2, '2027-02-28'],
+    ['2024-02-29', 12, '2025-02-28'],
+  ])('clamps %s plus %i months to %s', (start, months, expected) => {
+    expect(addMonthsToDateOnly(start, months)).toBe(expected);
   });
 
   test('2026-02-28 + 12 months', () => {
@@ -66,6 +74,15 @@ describe('warrantyDate', () => {
 
   test('status expired after end date', () => {
     expect(computeWarrantyStatus('2026-08-31', '2026-09-01')).toBe('expired');
+  });
+
+  test.each([
+    [31, 'active'], [30, 'expiring_soon'], [7, 'expiring_soon'],
+    [1, 'expiring_soon'], [0, 'expiring_soon'], [-1, 'expired'],
+    [-30, 'expired'], [-31, 'expired'],
+  ] as const)('inclusive status boundary at %i days', (delta, status) => {
+    const reference = '2026-09-01';
+    expect(computeWarrantyStatus(addDaysToDateOnly(reference, delta), reference)).toBe(status);
   });
 
   test('days until end date', () => {

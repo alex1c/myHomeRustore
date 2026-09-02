@@ -94,7 +94,7 @@ export default function TodayScreen() {
           {attention.map((row) => (
             <Pressable
               key={row.warranty.id}
-              onPress={() => router.push(`/warranty/${row.warranty.id}`)}
+              onPress={() => router.push({ pathname: '/warranty/[id]', params: { id: row.warranty.id } })}
               style={({ pressed }) => [
                 styles.attentionRow,
                 {

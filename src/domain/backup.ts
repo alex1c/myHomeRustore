@@ -8,6 +8,7 @@ export const BACKUP_EXTENSION = 'myhomebackup' as const;
 
 /** Soft limits against pathological archives (not enterprise ZIP-bomb defense). */
 export const BACKUP_MAX_ENTRIES = 5_000;
+export const BACKUP_MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
 export const BACKUP_MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
 
 /** Whitelisted app_settings keys that may be restored. */

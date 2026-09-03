@@ -2,7 +2,7 @@
  * More tab — settings, backup, and export entry points.
  */
 
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
@@ -45,7 +45,7 @@ export default function MoreScreen() {
       <Card style={styles.actions}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push('/backup')}
+          onPress={() => router.push('/backup' as Href)}
           style={({ pressed }) => [
             styles.row,
             { opacity: pressed ? 0.85 : 1 },
@@ -63,7 +63,7 @@ export default function MoreScreen() {
 
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push('/export')}
+          onPress={() => router.push('/export' as Href)}
           style={({ pressed }) => [
             styles.row,
             { opacity: pressed ? 0.85 : 1 },

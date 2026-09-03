@@ -15,7 +15,11 @@ export function getDataEpoch(): number {
 export function notifyDataReset(): number {
   epoch += 1;
   for (const listener of [...listeners]) {
-    listener(epoch);
+    try {
+      listener(epoch);
+    } catch {
+      // One mounted screen must not prevent other screens from reloading.
+    }
   }
   return epoch;
 }

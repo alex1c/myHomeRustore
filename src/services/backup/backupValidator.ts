@@ -101,6 +101,10 @@ function isNullOrDateOnly(value: unknown): boolean {
   return value === null || (typeof value === 'string' && isValidDateOnly(value));
 }
 
+function isValidInstant(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && Number.isFinite(Date.parse(value));
+}
+
 /**
  * Managed relative path that is safe and allowed under photos/ or documents/.
  * Returns the sanitized path, or null when invalid.
@@ -502,6 +506,22 @@ function validateBackupDataV1(
         'INVALID_DATE',
       );
     }
+    const endDate = warranty.end_date ?? null;
+    const duration = warranty.duration_months ?? null;
+    const startDate = warranty.start_date ?? null;
+    const explicitEnd =
+      typeof endDate === 'string' && duration === null;
+    const durationEnd =
+      endDate === null &&
+      isSafePositiveInt(duration) &&
+      typeof startDate === 'string' &&
+      isValidDateOnly(startDate);
+    if (!explicitEnd && !durationEnd) {
+      reject(
+        `Некорректный способ задания срока гарантии (${String(warranty.id)})`,
+        'INVALID_WARRANTY',
+      );
+    }
     // When both calendar bounds are present, start must not be after end.
     if (
       typeof warranty.start_date === 'string' &&
@@ -596,6 +616,9 @@ function validateBackupDataV1(
     assertTimestamps(event, `maintenance_event ${String(event.id)}`, [
       'performed_at',
     ]);
+    if (!isValidInstant(event.performed_at)) {
+      reject(`Некорректная дата события обслуживания ${String(event.id)}`, 'INVALID_DATE');
+    }
     if (!isNonEmptyString(event.item_id) || !itemIds.has(event.item_id)) {
       reject(
         `Событие обслуживания ${String(event.id)} ссылается на неизвестную вещь`,
@@ -702,6 +725,9 @@ function validateBackupDataV1(
     assertTimestamps(event, `consumable_event ${String(event.id)}`, [
       'replaced_at',
     ]);
+    if (!isValidInstant(event.replaced_at)) {
+      reject(`Некорректная дата события расходника ${String(event.id)}`, 'INVALID_DATE');
+    }
     if (!isNonEmptyString(event.item_id) || !itemIds.has(event.item_id)) {
       reject(
         `Событие расходника ${String(event.id)} ссылается на неизвестную вещь`,
@@ -755,6 +781,9 @@ function validateBackupDataV1(
   // --- reminders (CHECK semantics from schema) ---
   for (const reminder of data.reminders) {
     assertTimestamps(reminder, `reminder ${String(reminder.id)}`, ['due_at']);
+    if (!isValidInstant(reminder.due_at)) {
+      reject(`Некорректная дата напоминания ${String(reminder.id)}`, 'INVALID_DATE');
+    }
     if (!isNonEmptyString(reminder.item_id) || !itemIds.has(reminder.item_id)) {
       reject(
         `Напоминание ${String(reminder.id)} ссылается на неизвестную вещь`,

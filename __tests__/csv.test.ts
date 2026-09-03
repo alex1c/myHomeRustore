@@ -15,6 +15,9 @@ describe('csv helpers', () => {
       expect(escapeCsvCell('+1+1')).toBe("'+1+1");
       expect(escapeCsvCell('-SUM(A1)')).toBe("'-SUM(A1)");
       expect(escapeCsvCell('@mention')).toBe("'@mention");
+      expect(escapeCsvCell(' =1+1')).toBe("' =1+1");
+      expect(escapeCsvCell('\t=1+1')).toBe("'\t=1+1");
+      expect(escapeCsvCell('\u00A0+cmd')).toBe("'\u00A0+cmd");
     });
 
     test('quotes cells that contain semicolons or double quotes', () => {

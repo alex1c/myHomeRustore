@@ -56,7 +56,9 @@ export class BackupService {
     acquireBackupLock('backup');
     try {
       const raw = readBackupDataSnapshot(this.db);
+      const snapshotMarker = JSON.stringify(raw);
       const snapshot = await attachManagedFiles(raw, this.store);
+      this.assertSnapshotUnchanged(snapshotMarker);
       const backupId = createEntityIdSync();
       const createdAt = new Date().toISOString();
       const manifest: BackupManifest = {
@@ -90,7 +92,9 @@ export class BackupService {
     let uri: string | null = null;
     try {
       const raw = readBackupDataSnapshot(this.db);
+      const snapshotMarker = JSON.stringify(raw);
       const snapshot = await attachManagedFiles(raw, this.store);
+      this.assertSnapshotUnchanged(snapshotMarker);
       const backupId = createEntityIdSync();
       const createdAt = new Date().toISOString();
       const manifest: BackupManifest = {
@@ -131,6 +135,15 @@ export class BackupService {
         await this.store.deleteUri(uri);
       }
       releaseBackupLock();
+    }
+  }
+
+  private assertSnapshotUnchanged(snapshotMarker: string): void {
+    if (JSON.stringify(readBackupDataSnapshot(this.db)) !== snapshotMarker) {
+      throw new AppError(
+        'Данные изменились во время создания резервной копии. Повторите попытку.',
+        { code: 'BACKUP_CONCURRENT_WRITE' },
+      );
     }
   }
 }

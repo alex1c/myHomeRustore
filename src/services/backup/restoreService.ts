@@ -111,11 +111,19 @@ export class RestoreService {
 
       // 2–3. Stage files under fresh paths; rewrite dataset references.
       const pathMap = new Map<string, string>();
-      for (const [oldPath, fileBytes] of validated.files) {
-        const newPath = rewriteManagedPath(oldPath);
-        await this.store.writeRelative(newPath, fileBytes);
-        writtenPaths.push(newPath);
-        pathMap.set(oldPath, newPath);
+      try {
+        for (const [oldPath, fileBytes] of validated.files) {
+          const newPath = rewriteManagedPath(oldPath);
+          await this.store.writeRelative(newPath, fileBytes);
+          writtenPaths.push(newPath);
+          pathMap.set(oldPath, newPath);
+        }
+      } catch (error) {
+        await this.cleanupWrittenPaths(writtenPaths);
+        throw new AppError('Не удалось подготовить файлы резервной копии', {
+          code: 'FILE_STAGE_FAILED',
+          cause: error,
+        });
       }
 
       const data = validated.data;
@@ -156,9 +164,7 @@ export class RestoreService {
         });
       } catch (err) {
         // Compensation: remove staged files; old DB untouched after rollback.
-        for (const path of writtenPaths) {
-          await this.store.deleteRelative(path);
-        }
+        await this.cleanupWrittenPaths(writtenPaths);
         throw err instanceof AppError
           ? err
           : new AppError('Не удалось записать данные резервной копии', {
@@ -167,33 +173,50 @@ export class RestoreService {
             });
       }
 
+      // Files already live at their final fresh paths and the DB has committed.
+      // Every remaining platform/filesystem action is best-effort.
+      notifyDataReset();
+      const postCommitWarnings: string[] = [];
+
       // 7. Post-commit: cancel old OS notifications (best-effort).
       for (const id of oldNotificationIds) {
         try {
           await this.notifications.cancel(id);
         } catch {
-          // ignore
+          postCommitWarnings.push('Не удалось отменить старое уведомление');
         }
       }
 
-      const schedule = await this.scheduleRestoredReminders();
+      let schedule = {
+        scheduledCount: 0,
+        failedCount: 0,
+        permissionDenied: false,
+      };
+      try {
+        schedule = await this.scheduleRestoredReminders();
+      } catch {
+        postCommitWarnings.push('Не удалось восстановить уведомления');
+        schedule.failedCount = this.countFutureEnabledReminders();
+      }
 
       // Cleanup old managed files that are no longer referenced.
       const newReferenced = new Set<string>([...pathMap.values()]);
       for (const oldPath of oldManagedPaths) {
         if (!newReferenced.has(oldPath)) {
-          await this.store.deleteRelative(oldPath);
+          try {
+            await this.store.deleteRelative(oldPath);
+          } catch {
+            postCommitWarnings.push('Не удалось удалить старый файл');
+          }
         }
       }
-
-      notifyDataReset();
 
       return {
         counts: validated.counts,
         remindersScheduled: schedule.scheduledCount,
         remindersFailed: schedule.failedCount,
         permissionDenied: schedule.permissionDenied,
-        warnings: validated.warnings,
+        warnings: [...validated.warnings, ...postCommitWarnings],
       };
     } finally {
       releaseBackupLock();
@@ -209,6 +232,28 @@ export class RestoreService {
       .map((row) => row.notification_id);
   }
 
+  private async cleanupWrittenPaths(paths: string[]): Promise<void> {
+    for (const path of paths) {
+      try {
+        await this.store.deleteRelative(path);
+      } catch {
+        // Best-effort: an orphan is safer than touching any old live file.
+      }
+    }
+  }
+
+  private countFutureEnabledReminders(): number {
+    const now = Date.now();
+    return this.db
+      .getAll<{ due_at: string }>(
+        'SELECT due_at FROM reminders WHERE enabled = 1',
+      )
+      .filter((row) => {
+        const due = Date.parse(row.due_at);
+        return Number.isFinite(due) && due > now;
+      }).length;
+  }
+
   private deleteAllUserData(): void {
     // Child tables first — FK ON.
     this.db.run('DELETE FROM reminders');
@@ -222,7 +267,12 @@ export class RestoreService {
     this.db.run('DELETE FROM items');
     this.db.run('DELETE FROM locations');
     this.db.run('DELETE FROM properties');
-    this.db.run('DELETE FROM app_settings');
+    // Replace only portable user preferences. Runtime/transient keys are not
+    // part of the backup contract and must not be wiped or imported.
+    this.db.run(
+      `DELETE FROM app_settings
+       WHERE key IN ('activePropertyId', 'themePreference')`,
+    );
   }
 
   private insertAllUserData(data: ValidatedBackup['data']): void {

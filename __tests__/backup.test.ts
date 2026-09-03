@@ -88,23 +88,32 @@ function bytesEqual(a: Uint8Array | null, b: Uint8Array): boolean {
   return true;
 }
 
-/** Proxy that can force withTransaction to fail after files are staged. */
-function wrapDbFailingTransaction(
-  real: SqlDatabase,
-  shouldFail: () => boolean,
-): SqlDatabase {
+/** Proxy that fails after several SQL mutations inside a real transaction. */
+function wrapDbFailingMidTransaction(real: SqlDatabase): SqlDatabase {
+  let inside = false;
+  let mutations = 0;
   return {
     exec: (sql) => real.exec(sql),
-    run: (sql, params) => real.run(sql, params),
+    run: (sql, params) => {
+      if (inside && /^\s*(DELETE|INSERT)/i.test(sql)) {
+        mutations += 1;
+        if (mutations === 4) throw new Error('mid-transaction boom');
+      }
+      return real.run(sql, params);
+    },
     getAll: (sql, params) => real.getAll(sql, params),
     getFirst: (sql, params) => real.getFirst(sql, params),
     getUserVersion: () => real.getUserVersion(),
     setUserVersion: (version) => real.setUserVersion(version),
     withTransaction<T>(fn: () => T): T {
-      if (shouldFail()) {
-        throw new Error('boom');
-      }
-      return real.withTransaction(fn);
+      return real.withTransaction(() => {
+        inside = true;
+        try {
+          return fn();
+        } finally {
+          inside = false;
+        }
+      });
     },
   };
 }
@@ -771,9 +780,7 @@ describe('backup restore export', () => {
     );
     const { bytes } = await new BackupService(srcDb, srcStore).createArchiveBytes();
 
-    let fail = false;
-    const wrapped = wrapDbFailingTransaction(realDb, () => fail);
-    fail = true;
+    const wrapped = wrapDbFailingMidTransaction(realDb);
 
     await expect(
       new RestoreService(
@@ -790,6 +797,109 @@ describe('backup restore export', () => {
     const remaining = await store.listRelativePaths();
     expect(remaining).toEqual([oldPhoto]);
     expect(remaining.every((p) => !p.includes('incoming'))).toBe(true);
+  });
+
+  test('staging failure cleans earlier new files and leaves DB/current files untouched', async () => {
+    const db = openDb();
+    new InventoryService(db).createItem(defaultPropertyId(db), {
+      ...EMPTY_ITEM_FORM,
+      name: 'Keep me',
+    });
+    const files = new Map([
+      ['photos/a.jpg', new Uint8Array([1])],
+      ['photos/b.jpg', new Uint8Array([2])],
+    ]);
+    const items = ['a', 'b'].map((id) => ({
+      id: `item-${id}`,
+      property_id: 'prop-minimal-1',
+      location_id: null,
+      category: 'other',
+      name: id,
+      primary_photo_path: `photos/${id}.jpg`,
+      status: 'active',
+      created_at: '2026-09-03T12:00:00.000Z',
+      updated_at: '2026-09-03T12:00:00.000Z',
+    }));
+    const bytes = packMinimal({ data: { items }, files });
+    const store = new MemoryManagedStore();
+    let writes = 0;
+    const originalWrite = store.writeRelative.bind(store);
+    store.writeRelative = async (path, payload) => {
+      writes += 1;
+      if (writes === 2) throw new Error('disk full');
+      await originalWrite(path, payload);
+    };
+
+    await expect(
+      new RestoreService(db, new MockNotificationAdapter(), store).restoreFromBytes(bytes),
+    ).rejects.toMatchObject({ code: 'FILE_STAGE_FAILED' });
+    expect(itemNames(db)).toEqual(['Keep me']);
+    expect(await store.listRelativePaths()).toEqual([]);
+  });
+
+  test('post-commit cleanup failure is a warning, not a false restore failure', async () => {
+    const db = openDb();
+    new InventoryService(db).createItem(defaultPropertyId(db), {
+      ...EMPTY_ITEM_FORM,
+      name: 'Old item',
+    });
+    const store = new MemoryManagedStore();
+    store.seed('photos/orphan.jpg', new Uint8Array([9]));
+    store.deleteRelative = async () => {
+      throw new Error('cleanup denied');
+    };
+    const epochBefore = getDataEpoch();
+
+    const result = await new RestoreService(
+      db,
+      new MockNotificationAdapter(),
+      store,
+    ).restoreFromBytes(packMinimal());
+
+    expect(itemNames(db)).toEqual([]);
+    expect(getDataEpoch()).toBe(epochBefore + 1);
+    expect(result.warnings).toContain('Не удалось удалить старый файл');
+  });
+
+  test('replace restores whitelisted settings without wiping transient settings', async () => {
+    const db = openDb();
+    db.run('INSERT INTO app_settings (key, value) VALUES (?, ?)', [
+      'runtimeSessionFlag',
+      'keep',
+    ]);
+
+    await new RestoreService(
+      db,
+      new MockNotificationAdapter(),
+      new MemoryManagedStore(),
+    ).restoreFromBytes(packMinimal());
+
+    expect(
+      db.getFirst<{ value: string }>(
+        'SELECT value FROM app_settings WHERE key = ?',
+        ['runtimeSessionFlag'],
+      )?.value,
+    ).toBe('keep');
+  });
+
+  test('backup rejects a concurrent DB change instead of emitting a torn snapshot', async () => {
+    const db = openDb();
+    const store = new MemoryManagedStore();
+    store.seed('photos/a.jpg', new Uint8Array([1]));
+    new InventoryService(db).createItem(
+      defaultPropertyId(db),
+      { ...EMPTY_ITEM_FORM, name: 'Initial' },
+      'photos/a.jpg',
+    );
+    const originalRead = store.readRelative.bind(store);
+    store.readRelative = async (path) => {
+      db.run('UPDATE items SET name = ? WHERE name = ?', ['Changed', 'Initial']);
+      return originalRead(path);
+    };
+
+    await expect(new BackupService(db, store).createArchiveBytes()).rejects.toMatchObject({
+      code: 'BACKUP_CONCURRENT_WRITE',
+    });
   });
 
   test('reminder reconstruction drops old OS notification ids and schedules future ones', async () => {

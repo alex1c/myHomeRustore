@@ -6,6 +6,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
 import {
   BACKUP_FORMAT,
+  BACKUP_MAX_ARCHIVE_BYTES,
   BACKUP_MAX_ENTRIES,
   BACKUP_MAX_UNCOMPRESSED_BYTES,
   type BackupDataJson,
@@ -66,10 +67,42 @@ export function packBackupArchive(input: {
 
 /** Unpack and structurally validate archive entries (not full domain validation). */
 export function unpackBackupArchive(bytes: Uint8Array): UnpackedBackup {
+  if (bytes.byteLength > BACKUP_MAX_ARCHIVE_BYTES) {
+    throw new AppError('Архив слишком большой', { code: 'ZIP_TOO_LARGE' });
+  }
+
   let unzipped: Record<string, Uint8Array>;
+  let entryCount = 0;
+  let declaredTotal = 0;
+  const entryNames = new Set<string>();
   try {
-    unzipped = unzipSync(bytes);
-  } catch {
+    unzipped = unzipSync(bytes, {
+      filter: (entry) => {
+        entryCount += 1;
+        declaredTotal += entry.originalSize;
+        const safeName = assertSafeArchiveEntry(entry.name);
+        if (entryNames.has(safeName)) {
+          throw new AppError('Дублирующаяся запись в архиве', {
+            code: 'DUPLICATE_ENTRY',
+          });
+        }
+        entryNames.add(safeName);
+        if (
+          entryCount > BACKUP_MAX_ENTRIES ||
+          declaredTotal > BACKUP_MAX_UNCOMPRESSED_BYTES
+        ) {
+          throw new AppError('Архив слишком большой', { code: 'ZIP_TOO_LARGE' });
+        }
+        if (!isAllowedEntry(safeName)) {
+          throw new AppError(`Неподдерживаемый файл в архиве: ${safeName}`, {
+            code: 'UNEXPECTED_ENTRY',
+          });
+        }
+        return true;
+      },
+    });
+  } catch (error) {
+    if (error instanceof AppError) throw error;
     throw new AppError('Файл не является корректным ZIP-архивом', {
       code: 'INVALID_ZIP',
     });

@@ -2,13 +2,13 @@
  * Safe CSV helpers — UTF-8 with BOM, semicolon delimiter, formula injection guard.
  */
 
-const FORMULA_PREFIX = /^[=+\-@]/;
+const FORMULA_PREFIX = /^[\s\u00A0]*[=+\-@]/;
 
 /** Escape a single CSV cell for Russian Excel (semicolon separated). */
 export function escapeCsvCell(value: string | number | null | undefined): string {
   let text = value == null ? '' : String(value);
   // Neutralize spreadsheet formula injection.
-  if (FORMULA_PREFIX.test(text) || text.startsWith('\t')) {
+  if (FORMULA_PREFIX.test(text)) {
     text = `'${text}`;
   }
   const needsQuotes =

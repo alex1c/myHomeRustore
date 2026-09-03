@@ -103,7 +103,7 @@ export function ConsumableForm({ values, onChange }: ConsumableFormProps) {
                 patch({ stockQuantity: 0 });
                 return;
               }
-              if (Number.isInteger(parsed) && parsed >= 0) {
+              if (Number.isSafeInteger(parsed) && parsed >= 0) {
                 patch({ stockQuantity: parsed });
               }
             }}

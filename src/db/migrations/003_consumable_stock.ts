@@ -29,7 +29,8 @@ export const migration003ConsumableStock: Migration = {
       CREATE TRIGGER IF NOT EXISTS consumables_stock_non_negative_insert
       BEFORE INSERT ON consumables
       WHEN NEW.stock_quantity IS NOT NULL AND (
-        typeof(NEW.stock_quantity) != 'integer' OR NEW.stock_quantity < 0
+        typeof(NEW.stock_quantity) != 'integer' OR NEW.stock_quantity < 0 OR
+        NEW.stock_quantity > 9007199254740991
       )
       BEGIN
         SELECT RAISE(ABORT, 'invalid consumable stock');
@@ -38,7 +39,8 @@ export const migration003ConsumableStock: Migration = {
       CREATE TRIGGER IF NOT EXISTS consumables_stock_non_negative_update
       BEFORE UPDATE OF stock_quantity ON consumables
       WHEN NEW.stock_quantity IS NOT NULL AND (
-        typeof(NEW.stock_quantity) != 'integer' OR NEW.stock_quantity < 0
+        typeof(NEW.stock_quantity) != 'integer' OR NEW.stock_quantity < 0 OR
+        NEW.stock_quantity > 9007199254740991
       )
       BEGIN
         SELECT RAISE(ABORT, 'invalid consumable stock');
@@ -58,6 +60,20 @@ export const migration003ConsumableStock: Migration = {
         SELECT RAISE(ABORT, 'invalid consumable stock unit');
       END;
 
+      CREATE TRIGGER IF NOT EXISTS consumables_stock_state_insert
+      BEFORE INSERT ON consumables
+      WHEN (NEW.stock_quantity IS NULL) != (NEW.stock_unit IS NULL)
+      BEGIN
+        SELECT RAISE(ABORT, 'consumable stock and unit must be set together');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS consumables_stock_state_update
+      BEFORE UPDATE OF stock_quantity, stock_unit ON consumables
+      WHEN (NEW.stock_quantity IS NULL) != (NEW.stock_unit IS NULL)
+      BEGIN
+        SELECT RAISE(ABORT, 'consumable stock and unit must be set together');
+      END;
+
       CREATE TRIGGER IF NOT EXISTS consumable_events_type_insert
       BEFORE INSERT ON consumable_events
       WHEN NEW.event_type NOT IN ('replacement', 'stock_add', 'stock_set')
@@ -70,6 +86,62 @@ export const migration003ConsumableStock: Migration = {
       WHEN NEW.event_type NOT IN ('replacement', 'stock_add', 'stock_set')
       BEGIN
         SELECT RAISE(ABORT, 'invalid consumable event type');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS consumable_events_quantity_insert
+      BEFORE INSERT ON consumable_events
+      WHEN NOT (
+        (NEW.event_type = 'replacement' AND (
+          (NEW.stock_before IS NULL AND NEW.stock_after IS NULL AND NEW.quantity_delta IS NULL) OR
+          (typeof(NEW.stock_before) = 'integer' AND typeof(NEW.stock_after) = 'integer' AND
+           typeof(NEW.quantity_delta) = 'integer' AND NEW.stock_before >= 0 AND
+           NEW.stock_after >= 0 AND NEW.stock_before <= 9007199254740991 AND
+           NEW.stock_after <= 9007199254740991 AND
+           NEW.quantity_delta = NEW.stock_after - NEW.stock_before AND
+           (NEW.stock_after = NEW.stock_before OR NEW.stock_after = NEW.stock_before - 1))
+        )) OR
+        (NEW.event_type = 'stock_add' AND typeof(NEW.stock_before) = 'integer' AND
+         typeof(NEW.stock_after) = 'integer' AND typeof(NEW.quantity_delta) = 'integer' AND
+         NEW.stock_before >= 0 AND NEW.stock_after <= 9007199254740991 AND
+         NEW.quantity_delta > 0 AND NEW.stock_after = NEW.stock_before + NEW.quantity_delta) OR
+        (NEW.event_type = 'stock_set' AND typeof(NEW.stock_after) = 'integer' AND
+         NEW.stock_after >= 0 AND NEW.stock_after <= 9007199254740991 AND (
+           (NEW.stock_before IS NULL AND NEW.quantity_delta IS NULL) OR
+           (typeof(NEW.stock_before) = 'integer' AND typeof(NEW.quantity_delta) = 'integer' AND
+            NEW.stock_before >= 0 AND NEW.stock_before <= 9007199254740991 AND
+            NEW.quantity_delta = NEW.stock_after - NEW.stock_before)
+         ))
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'invalid consumable event quantity state');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS consumable_events_quantity_update
+      BEFORE UPDATE OF event_type, quantity_delta, stock_before, stock_after ON consumable_events
+      WHEN NOT (
+        (NEW.event_type = 'replacement' AND (
+          (NEW.stock_before IS NULL AND NEW.stock_after IS NULL AND NEW.quantity_delta IS NULL) OR
+          (typeof(NEW.stock_before) = 'integer' AND typeof(NEW.stock_after) = 'integer' AND
+           typeof(NEW.quantity_delta) = 'integer' AND NEW.stock_before >= 0 AND
+           NEW.stock_after >= 0 AND NEW.stock_before <= 9007199254740991 AND
+           NEW.stock_after <= 9007199254740991 AND
+           NEW.quantity_delta = NEW.stock_after - NEW.stock_before AND
+           (NEW.stock_after = NEW.stock_before OR NEW.stock_after = NEW.stock_before - 1))
+        )) OR
+        (NEW.event_type = 'stock_add' AND typeof(NEW.stock_before) = 'integer' AND
+         typeof(NEW.stock_after) = 'integer' AND typeof(NEW.quantity_delta) = 'integer' AND
+         NEW.stock_before >= 0 AND NEW.stock_after <= 9007199254740991 AND
+         NEW.quantity_delta > 0 AND NEW.stock_after = NEW.stock_before + NEW.quantity_delta) OR
+        (NEW.event_type = 'stock_set' AND typeof(NEW.stock_after) = 'integer' AND
+         NEW.stock_after >= 0 AND NEW.stock_after <= 9007199254740991 AND (
+           (NEW.stock_before IS NULL AND NEW.quantity_delta IS NULL) OR
+           (typeof(NEW.stock_before) = 'integer' AND typeof(NEW.quantity_delta) = 'integer' AND
+            NEW.stock_before >= 0 AND NEW.stock_before <= 9007199254740991 AND
+            NEW.quantity_delta = NEW.stock_after - NEW.stock_before)
+         ))
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'invalid consumable event quantity state');
       END;
     `);
   },

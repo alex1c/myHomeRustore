@@ -129,7 +129,7 @@ export class ConsumableRepository {
     const name = input.name.trim();
     if (!name) throw new AppError('Введите название расходника');
     if (input.stockQuantity != null) {
-      if (!Number.isInteger(input.stockQuantity) || input.stockQuantity < 0) {
+      if (!Number.isSafeInteger(input.stockQuantity) || input.stockQuantity < 0) {
         throw new AppError('Количество должно быть целым и не меньше нуля');
       }
     }
@@ -213,7 +213,7 @@ export class ConsumableRepository {
       stockUnit = null;
     } else if (input.stockQuantity !== undefined) {
       if (input.stockQuantity != null) {
-        if (!Number.isInteger(input.stockQuantity) || input.stockQuantity < 0) {
+        if (!Number.isSafeInteger(input.stockQuantity) || input.stockQuantity < 0) {
           throw new AppError('Количество должно быть целым и не меньше нуля');
         }
       }

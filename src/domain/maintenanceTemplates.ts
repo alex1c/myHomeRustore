@@ -66,14 +66,6 @@ export const MAINTENANCE_TEMPLATES: readonly MaintenanceTemplate[] = [
     intervalUnit: 'day',
     matchKeywords: ['робот-пылесос', 'робот пылесос', 'роботпылесос', 'robot'],
   },
-  {
-    id: 'robot-filter',
-    group: 'Робот-пылесос',
-    title: 'Заменить фильтр',
-    intervalValue: 3,
-    intervalUnit: 'month',
-    matchKeywords: ['робот-пылесос', 'робот пылесос', 'роботпылесос', 'robot'],
-  },
   // Пылесос
   {
     id: 'vac-filter',
@@ -81,14 +73,6 @@ export const MAINTENANCE_TEMPLATES: readonly MaintenanceTemplate[] = [
     title: 'Очистить фильтр',
     intervalValue: 30,
     intervalUnit: 'day',
-    matchKeywords: ['пылесос'],
-  },
-  {
-    id: 'vac-replace-filter',
-    group: 'Пылесос',
-    title: 'Заменить фильтр',
-    intervalValue: 6,
-    intervalUnit: 'month',
     matchKeywords: ['пылесос'],
   },
   // Кофемашина
@@ -184,14 +168,6 @@ export const MAINTENANCE_TEMPLATES: readonly MaintenanceTemplate[] = [
     intervalUnit: 'day',
     matchKeywords: ['вытяжк', 'hood'],
   },
-  {
-    id: 'hood-carbon',
-    group: 'Вытяжка',
-    title: 'Заменить угольный фильтр',
-    intervalValue: 6,
-    intervalUnit: 'month',
-    matchKeywords: ['вытяжк', 'hood'],
-  },
   // Очиститель воздуха
   {
     id: 'air-prefilter',
@@ -200,23 +176,6 @@ export const MAINTENANCE_TEMPLATES: readonly MaintenanceTemplate[] = [
     intervalValue: 30,
     intervalUnit: 'day',
     matchKeywords: ['очистител', 'воздух', 'air purifier', 'hepa'],
-  },
-  {
-    id: 'air-hepa',
-    group: 'Очиститель воздуха',
-    title: 'Заменить HEPA',
-    intervalValue: 6,
-    intervalUnit: 'month',
-    matchKeywords: ['очистител', 'воздух', 'air purifier', 'hepa'],
-  },
-  // Фильтр воды
-  {
-    id: 'water-cartridge',
-    group: 'Фильтр воды',
-    title: 'Заменить картридж',
-    intervalValue: 3,
-    intervalUnit: 'month',
-    matchKeywords: ['фильтр воды', 'картридж', 'water filter', 'кувшин'],
   },
   // Котёл
   {

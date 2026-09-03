@@ -7,6 +7,8 @@ import initSqlJs from 'sql.js';
 import { createDatabaseFromClient } from '@/src/db/database';
 import { getExpectedSchemaVersion, runMigrations } from '@/src/db/migrate';
 import { CURRENT_SCHEMA_VERSION } from '@/src/db/migrations';
+import { migration001Initial } from '@/src/db/migrations/001_initial';
+import { migration002WarrantyIntegrity } from '@/src/db/migrations/002_warranty_integrity';
 import { createSqlJsAdapter } from '@/src/db/sqlJsAdapter';
 import type { SqlDatabase } from '@/src/db/types';
 
@@ -57,6 +59,75 @@ describe('migrations', () => {
     const versionBefore = adapter.getUserVersion();
     runMigrations(adapter);
     expect(adapter.getUserVersion()).toBe(versionBefore);
+  });
+
+  test('v2 fixture upgrades to v3 without changing existing consumables or events', async () => {
+    const SQL = await initSqlJs();
+    const adapter = createSqlJsAdapter(new SQL.Database());
+    adapter.exec('PRAGMA foreign_keys = ON;');
+    migration001Initial.up(adapter);
+    adapter.setUserVersion(1);
+    adapter.run("INSERT INTO schema_migrations VALUES (1, '001_initial', '2026-01-01T00:00:00.000Z')");
+    migration002WarrantyIntegrity.up(adapter);
+    adapter.setUserVersion(2);
+    adapter.run("INSERT INTO schema_migrations VALUES (2, '002_warranty_integrity', '2026-01-01T00:00:00.000Z')");
+
+    const propertyId = 'property-v2';
+    adapter.run(`INSERT INTO properties (id, name, type, created_at, updated_at)
+      VALUES (?, 'Home', 'home', ?, ?)`,
+    [propertyId, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
+    adapter.run(`INSERT INTO items
+      (id, property_id, category, name, status, created_at, updated_at)
+      VALUES ('item-v2', ?, 'other', 'Vacuum', 'active', ?, ?)`,
+    [propertyId, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
+    adapter.run(`INSERT INTO consumables
+      (id, item_id, name, last_replaced_date, next_due_date, active, created_at, updated_at)
+      VALUES ('cons-v2', 'item-v2', 'Filter', '2026-01-31', '2026-02-28', 1, ?, ?)`,
+    ['2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
+    adapter.run(`INSERT INTO consumable_events
+      (id, item_id, consumable_id, replaced_at, note, created_at, updated_at)
+      VALUES ('event-v2', 'item-v2', 'cons-v2', ?, 'old event', ?, ?)`,
+    ['2026-01-31T12:00:00.000Z', '2026-01-31T12:00:00.000Z', '2026-01-31T12:00:00.000Z']);
+    adapter.run(`INSERT INTO reminders
+      (id, item_id, reminder_type, consumable_id, due_at, notification_id, enabled, created_at, updated_at)
+      VALUES ('rem-v2', 'item-v2', 'consumable', 'cons-v2', ?, 'os-v2', 1, ?, ?)`,
+    ['2026-02-28T09:00:00.000Z', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
+
+    runMigrations(adapter);
+
+    expect(adapter.getUserVersion()).toBe(3);
+    expect(adapter.getFirst<{ stock_quantity: number | null; next_due_date: string }>(
+      "SELECT stock_quantity, next_due_date FROM consumables WHERE id = 'cons-v2'",
+    )).toEqual({ stock_quantity: null, next_due_date: '2026-02-28' });
+    expect(adapter.getFirst<{ event_type: string; note: string }>(
+      "SELECT event_type, note FROM consumable_events WHERE id = 'event-v2'",
+    )).toEqual({ event_type: 'replacement', note: 'old event' });
+    expect(adapter.getFirst<{ notification_id: string }>(
+      "SELECT notification_id FROM reminders WHERE id = 'rem-v2'",
+    )?.notification_id).toBe('os-v2');
+  });
+
+  test('migration 003 and user_version roll back together on failure', async () => {
+    const SQL = await initSqlJs();
+    const adapter = createSqlJsAdapter(new SQL.Database());
+    migration001Initial.up(adapter);
+    adapter.setUserVersion(1);
+    adapter.run("INSERT INTO schema_migrations VALUES (1, '001_initial', '2026-01-01T00:00:00.000Z')");
+    migration002WarrantyIntegrity.up(adapter);
+    adapter.setUserVersion(2);
+    adapter.run("INSERT INTO schema_migrations VALUES (2, '002_warranty_integrity', '2026-01-01T00:00:00.000Z')");
+    const failingDb: SqlDatabase = {
+      ...adapter,
+      run(sql, params) {
+        if (sql.includes('INSERT INTO schema_migrations')) throw new Error('phase 5 failure');
+        return adapter.run(sql, params);
+      },
+    };
+
+    expect(() => runMigrations(failingDb)).toThrow('Migration 3');
+    expect(adapter.getUserVersion()).toBe(2);
+    expect(adapter.getAll<{ name: string }>("PRAGMA table_info('consumables')")
+      .some((column) => column.name === 'stock_quantity')).toBe(false);
   });
 
   test('migration and version roll back together on failure', async () => {

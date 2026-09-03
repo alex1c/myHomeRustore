@@ -71,6 +71,26 @@ describe('consumables', () => {
     await expect(
       service.setStock(five.consumable.id, -1),
     ).rejects.toThrow();
+    await expect(service.setStock(five.consumable.id, 1.5)).rejects.toThrow();
+    await expect(service.setStock(five.consumable.id, Number.NaN)).rejects.toThrow();
+    await expect(service.setStock(five.consumable.id, Number.MAX_SAFE_INTEGER + 1)).rejects.toThrow();
+  });
+
+  test('editing other fields preserves null stock', async () => {
+    const { item, service } = await seed();
+    const created = await service.create(item.id, {
+      ...EMPTY_CONSUMABLE_FORM,
+      name: 'Filter',
+      trackStock: false,
+      remindersEnabled: false,
+    });
+    const updated = await service.update(created.consumable.id, {
+      ...EMPTY_CONSUMABLE_FORM,
+      name: 'Filter 2',
+      trackStock: false,
+      remindersEnabled: false,
+    });
+    expect(updated.consumable.stockQuantity).toBeNull();
   });
 
   test('stock only without schedule is valid', async () => {
@@ -155,6 +175,46 @@ describe('consumables', () => {
     expect(result.consumable.stockQuantity).toBe(5);
     expect(result.consumable.nextDueDate).toBe('2026-12-01');
     expect(result.event.eventType).toBe('stock_add');
+  });
+
+  test('set stock does not change next due and records stock_set', async () => {
+    const { item, service } = await seed();
+    const created = await service.create(item.id, {
+      ...EMPTY_CONSUMABLE_FORM,
+      name: 'Filter', trackStock: true, stockQuantity: 3,
+      intervalValue: 3, intervalUnit: 'month', dueMode: 'explicit',
+      nextDueDate: '2026-12-01', remindersEnabled: false,
+    });
+    const result = await service.setStock(created.consumable.id, 10);
+    expect(result.consumable.nextDueDate).toBe('2026-12-01');
+    expect(result.event).toMatchObject({ eventType: 'stock_set', stockBefore: 3, stockAfter: 10, quantityDelta: 7 });
+  });
+
+  test('null-stock replacement keeps null and historical replacement does not move current state', async () => {
+    const { item, service } = await seed();
+    const created = await service.create(item.id, {
+      ...EMPTY_CONSUMABLE_FORM,
+      name: 'Filter', trackStock: false,
+      intervalValue: 3, intervalUnit: 'month', dueMode: 'explicit',
+      nextDueDate: '2026-09-10', remindersEnabled: false,
+    });
+    const latest = await service.markReplaced(created.consumable.id, '2026-09-10');
+    expect(latest.consumable).toMatchObject({ stockQuantity: null, nextDueDate: '2026-12-10' });
+    const historical = await service.markReplaced(created.consumable.id, '2026-08-01');
+    expect(historical.consumable).toMatchObject({ stockQuantity: null, nextDueDate: '2026-12-10' });
+    expect(service.listEvents(created.consumable.id)).toHaveLength(2);
+  });
+
+  test('database rejects contradictory typed event quantities', async () => {
+    const { db, item, service } = await seed();
+    const created = await service.create(item.id, {
+      ...EMPTY_CONSUMABLE_FORM, name: 'Filter', trackStock: true,
+      stockQuantity: 2, remindersEnabled: false,
+    });
+    expect(() => db.run(`INSERT INTO consumable_events
+      (id,item_id,consumable_id,event_type,replaced_at,quantity_delta,stock_before,stock_after,created_at,updated_at)
+      VALUES ('bad',?,?,'stock_add',?,1,2,2,?,?)`,
+    [item.id, created.consumable.id, '2026-01-01T12:00:00.000Z', '2026-01-01T12:00:00.000Z', '2026-01-01T12:00:00.000Z'])).toThrow();
   });
 
   test('item cascade removes consumables and events', async () => {

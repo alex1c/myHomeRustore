@@ -74,6 +74,23 @@ describe('consumableReminders', () => {
     expect(db.getFirst('SELECT id FROM reminders LIMIT 1')).toBeNull();
   });
 
+  test('rejects duplicate and unsupported reminder offsets', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const inventory = new InventoryService(db);
+    const propertyId = db.getFirst<{ id: string }>('SELECT id FROM properties LIMIT 1')!.id;
+    const item = inventory.createItem(propertyId, { ...EMPTY_ITEM_FORM, name: 'Robot' });
+    const service = new ConsumableService(db, new MockNotificationAdapter());
+    for (const reminderOffsets of [[0, 0], [4], [Number.NaN], [Number.MAX_SAFE_INTEGER + 1]]) {
+      await expect(service.create(item.id, {
+        ...EMPTY_CONSUMABLE_FORM,
+        name: 'HEPA',
+        reminderOffsets,
+        remindersEnabled: false,
+      })).rejects.toThrow();
+    }
+  });
+
   test('mark replaced reschedules without duplicates', async () => {
     const SQL = await initSqlJs();
     const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
@@ -124,6 +141,71 @@ describe('consumableReminders', () => {
     const ids = notifications.scheduled.map((s) => s.id);
     await service.delete(created.consumable.id);
     expect(notifications.cancelled).toEqual(expect.arrayContaining(ids));
+  });
+
+  test('schedule failure after replacement keeps committed event, stock, and due date', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const inventory = new InventoryService(db);
+    const propertyId = db.getFirst<{ id: string }>('SELECT id FROM properties LIMIT 1')!.id;
+    const item = inventory.createItem(propertyId, { ...EMPTY_ITEM_FORM, name: 'Robot' });
+    const notifications = new MockNotificationAdapter();
+    const service = new ConsumableService(db, notifications);
+    const created = await service.create(item.id, {
+      ...EMPTY_CONSUMABLE_FORM, name: 'HEPA', trackStock: true, stockQuantity: 2,
+      dueMode: 'explicit', nextDueDate: dueIn(2), intervalValue: 30,
+      intervalUnit: 'day', remindersEnabled: false,
+    });
+    jest.spyOn(notifications, 'schedule').mockRejectedValueOnce(new Error('OS failure'));
+
+    const done = await service.markReplaced(created.consumable.id, toLocalDateOnly());
+
+    expect(done.reminders.failedCount).toBe(1);
+    expect(done.consumable.stockQuantity).toBe(1);
+    expect(done.consumable.nextDueDate).toBe(dueIn(30));
+    expect(service.listEvents(created.consumable.id)).toHaveLength(1);
+    expect(new ReminderRepository(db).listByConsumableId(created.consumable.id)).toHaveLength(0);
+  });
+
+  test('DB persistence failure cancels newly scheduled consumable notification', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const inventory = new InventoryService(db);
+    const propertyId = db.getFirst<{ id: string }>('SELECT id FROM properties LIMIT 1')!.id;
+    const item = inventory.createItem(propertyId, { ...EMPTY_ITEM_FORM, name: 'Robot' });
+    const notifications = new MockNotificationAdapter();
+    const createSpy = jest.spyOn(ReminderRepository.prototype, 'create')
+      .mockImplementationOnce(() => { throw new Error('DB failure'); });
+    const service = new ConsumableService(db, notifications);
+
+    const result = await service.create(item.id, {
+      ...EMPTY_CONSUMABLE_FORM, name: 'HEPA', dueMode: 'explicit',
+      nextDueDate: dueIn(10), intervalValue: 3, intervalUnit: 'month',
+      remindersEnabled: true,
+    });
+
+    createSpy.mockRestore();
+    expect(result.reminders).toMatchObject({ scheduledCount: 0, failedCount: 1 });
+    expect(notifications.cancelled).toContain('mock-notif-1');
+    expect(new ReminderRepository(db).listByConsumableId(result.consumable.id)).toHaveLength(0);
+  });
+
+  test('cancel failure does not block consumable deletion', async () => {
+    const SQL = await initSqlJs();
+    const db = createDatabaseFromClient(createSqlJsAdapter(new SQL.Database()));
+    const inventory = new InventoryService(db);
+    const propertyId = db.getFirst<{ id: string }>('SELECT id FROM properties LIMIT 1')!.id;
+    const item = inventory.createItem(propertyId, { ...EMPTY_ITEM_FORM, name: 'Robot' });
+    const notifications = new MockNotificationAdapter();
+    const service = new ConsumableService(db, notifications);
+    const created = await service.create(item.id, {
+      ...EMPTY_CONSUMABLE_FORM, name: 'HEPA', dueMode: 'explicit',
+      nextDueDate: dueIn(10), intervalValue: 3, intervalUnit: 'month', remindersEnabled: true,
+    });
+    jest.spyOn(notifications, 'cancel').mockRejectedValue(new Error('OS failure'));
+
+    await expect(service.delete(created.consumable.id)).resolves.toBeUndefined();
+    expect(service.getById(created.consumable.id)).toBeNull();
   });
 
   test('item delete cancels warranty + maintenance + consumable notifications', async () => {

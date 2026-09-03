@@ -69,12 +69,14 @@ export default function ConsumableDetailScreen() {
     if (!consumableService || !id || busy) return;
     setBusy(true);
     try {
-      const result = await consumableService.markReplaced(
-        id,
-        date ?? toLocalDateOnly(),
-        note ?? null,
-        { allowZeroStock: allowZero },
-      );
+      const result = date
+        ? await consumableService.addHistoryReplacement(id, date, note ?? null)
+        : await consumableService.markReplaced(
+            id,
+            toLocalDateOnly(),
+            note ?? null,
+            { allowZeroStock: allowZero },
+          );
       const next = result.consumable.nextDueDate
         ? formatRussianDate(result.consumable.nextDueDate)
         : null;
@@ -141,7 +143,7 @@ export default function ConsumableDetailScreen() {
   const handleSetStock = async () => {
     if (!consumableService || !id) return;
     const quantity = Number(stockInput);
-    if (!Number.isInteger(quantity) || quantity < 0) {
+    if (!Number.isSafeInteger(quantity) || quantity < 0) {
       Alert.alert('Ошибка', 'Укажите целое число ≥ 0');
       return;
     }

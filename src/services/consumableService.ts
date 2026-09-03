@@ -12,7 +12,11 @@ import type {
   DateOnly,
   IntervalUnit,
 } from '@/src/domain/types';
-import type { ConsumableFormValues, ConsumableListFilters } from '@/src/domain/consumables';
+import {
+  ALL_CONSUMABLE_REMINDER_OFFSETS,
+  type ConsumableFormValues,
+  type ConsumableListFilters,
+} from '@/src/domain/consumables';
 import type { SqlDatabase } from '@/src/db/types';
 import {
   ConsumableRepository,
@@ -50,6 +54,16 @@ export type MarkReplacedResult = {
 function optionalText(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function validateReminderOffsets(offsets: number[]): void {
+  const allowed = new Set<number>(ALL_CONSUMABLE_REMINDER_OFFSETS);
+  if (
+    new Set(offsets).size !== offsets.length ||
+    offsets.some((offset) => !Number.isSafeInteger(offset) || !allowed.has(offset))
+  ) {
+    throw new AppError('Некорректные сроки напоминаний');
+  }
 }
 
 export class ConsumableService {
@@ -103,6 +117,7 @@ export class ConsumableService {
     itemId: string,
     values: ConsumableFormValues,
   ): Promise<ConsumableSaveResult> {
+    validateReminderOffsets(values.reminderOffsets);
     const item = this.items.getById(itemId);
     if (!item) throw new AppError('Вещь не найдена', { code: 'NOT_FOUND' });
 
@@ -158,6 +173,7 @@ export class ConsumableService {
     id: string,
     values: ConsumableFormValues,
   ): Promise<ConsumableSaveResult> {
+    validateReminderOffsets(values.reminderOffsets);
     const existing = this.consumables.getById(id);
     if (!existing) throw new AppError('Расходник не найден', { code: 'NOT_FOUND' });
 
@@ -219,6 +235,24 @@ export class ConsumableService {
     const existing = this.consumables.getById(consumableId);
     if (!existing) throw new AppError('Расходник не найден', { code: 'NOT_FOUND' });
 
+    const latest = this.consumables.getLatestReplacementEvent(consumableId);
+    const latestDate = latest ? utcInstantToDateOnly(latest.replacedAt) : null;
+    if (latestDate && performedDate < latestDate) {
+      const event = this.consumables.createEvent({
+        itemId: existing.itemId,
+        consumableId,
+        eventType: 'replacement',
+        occurredDate: performedDate,
+        note: note ?? null,
+      });
+      return {
+        event,
+        consumable: existing,
+        reminders: { permissionDenied: false, scheduledCount: 0, failedCount: 0 },
+        stockWasZero: false,
+      };
+    }
+
     const stockWasZero = existing.stockQuantity === 0;
     if (stockWasZero && !options?.allowZeroStock) {
       throw new AppError('STOCK_ZERO_CONFIRM', { code: 'STOCK_ZERO_CONFIRM' });
@@ -278,7 +312,7 @@ export class ConsumableService {
     amount: number,
     note?: string | null,
   ): Promise<{ consumable: Consumable; event: ConsumableEvent }> {
-    if (!Number.isInteger(amount) || amount <= 0) {
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
       throw new AppError('Укажите целое положительное количество');
     }
     const existing = this.consumables.getById(consumableId);
@@ -290,6 +324,9 @@ export class ConsumableService {
     return this.db.withTransaction(() => {
       const stockBefore = existing.stockQuantity!;
       const stockAfter = stockBefore + amount;
+      if (!Number.isSafeInteger(stockAfter)) {
+        throw new AppError('Количество превышает допустимое значение');
+      }
       const event = this.consumables.createEvent({
         itemId: existing.itemId,
         consumableId,
@@ -314,7 +351,7 @@ export class ConsumableService {
     quantity: number,
     note?: string | null,
   ): Promise<{ consumable: Consumable; event: ConsumableEvent }> {
-    if (!Number.isInteger(quantity) || quantity < 0) {
+    if (!Number.isSafeInteger(quantity) || quantity < 0) {
       throw new AppError('Количество должно быть целым и не меньше нуля');
     }
     const existing = this.consumables.getById(consumableId);

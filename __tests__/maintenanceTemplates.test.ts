@@ -20,6 +20,14 @@ describe('maintenanceTemplates', () => {
     });
     expect(templates.some((t) => t.group === 'Робот-пылесос')).toBe(true);
     expect(templates.some((t) => t.group === 'Пылесос')).toBe(false);
+    expect(templates.some((t) => t.title.startsWith('Заменить'))).toBe(false);
+  });
+
+  test('replacement parts stay in consumables, not maintenance suggestions', () => {
+    for (const name of ['Вытяжка', 'Очиститель воздуха', 'Фильтр воды']) {
+      expect(suggestMaintenanceTemplates({ name })
+        .some((template) => template.title.startsWith('Заменить'))).toBe(false);
+    }
   });
 
   test('returns empty when no match', () => {

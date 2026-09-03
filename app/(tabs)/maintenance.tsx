@@ -3,7 +3,7 @@
  */
 
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -26,6 +26,7 @@ import type { MaintenanceListRow } from '@/src/repositories/maintenanceRepositor
 import { AppError } from '@/src/domain/errors';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
+import { subscribeDataReset } from '@/src/services/dataReset';
 import { useThemeColors } from '@/src/theme/useThemeColors';
 import { radii, spacing, typography } from '@/src/theme/tokens';
 import { formatRussianDate } from '@/src/utils/formatDate';
@@ -94,6 +95,8 @@ export default function MaintenanceScreen() {
       load();
     }, [load]),
   );
+
+  useEffect(() => subscribeDataReset(() => load()), [load]);
 
   const handleMarkDone = async (ruleId: string) => {
     if (!maintenanceService || busyId) return;

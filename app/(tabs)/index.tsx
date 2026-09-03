@@ -3,7 +3,7 @@
  */
 
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,7 @@ import {
 } from '@/src/domain/today';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
+import { subscribeDataReset } from '@/src/services/dataReset';
 import { useThemeColors } from '@/src/theme/useThemeColors';
 import { spacing, typography } from '@/src/theme/tokens';
 import {
@@ -81,6 +82,9 @@ export default function TodayScreen() {
       load();
     }, [load]),
   );
+
+  // After replace-restore, bump refresh even if the tab stayed mounted.
+  useEffect(() => subscribeDataReset(() => load()), [load]);
 
   const visibleAttention = useMemo(() => {
     if (!overview) return [];

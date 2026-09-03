@@ -36,6 +36,9 @@ import { MaintenanceService } from '@/src/services/maintenanceService';
 import { ConsumableService } from '@/src/services/consumableService';
 import { ConsumableRepository } from '@/src/repositories/consumableRepository';
 import { TodayService } from '@/src/services/todayService';
+import { BackupService } from '@/src/services/backup/backupService';
+import { RestoreService } from '@/src/services/backup/restoreService';
+import { ExportService } from '@/src/services/backup/exportService';
 
 export type DatabaseContextValue = {
   ready: boolean;
@@ -59,6 +62,9 @@ export type DatabaseContextValue = {
   maintenanceService: MaintenanceService | null;
   consumableService: ConsumableService | null;
   todayService: TodayService | null;
+  backupService: BackupService | null;
+  restoreService: RestoreService | null;
+  exportService: ExportService | null;
   notifications: NotificationAdapter | null;
 };
 
@@ -116,6 +122,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         consumableService: null,
         consumables: null,
         todayService: null,
+        backupService: null,
+        restoreService: null,
+        exportService: null,
         notifications: null,
       };
     }
@@ -144,6 +153,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       maintenanceService: new MaintenanceService(db, notifications),
       consumableService: new ConsumableService(db, notifications),
       todayService: new TodayService(db),
+      backupService: new BackupService(db),
+      restoreService: new RestoreService(db, notifications),
+      exportService: new ExportService(db),
       notifications,
     };
   }, [db, error]);

@@ -1,9 +1,10 @@
 /**
- * More tab — settings foundation placeholder.
+ * More tab — settings, backup, and export entry points.
  */
 
+import { useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
@@ -14,6 +15,7 @@ import { useThemeColors } from '@/src/theme/useThemeColors';
 import { spacing, typography } from '@/src/theme/tokens';
 
 export default function MoreScreen() {
+  const router = useRouter();
   const colors = useThemeColors();
   const { properties } = useDatabase();
   const defaultProperty = properties?.listProperties()[0];
@@ -40,12 +42,41 @@ export default function MoreScreen() {
         </Text>
       </Card>
 
-      <View style={styles.note}>
-        <Text style={[styles.noteText, { color: colors.textMuted }]}>
-          Резервное копирование, экспорт и настройки уведомлений — в следующих
-          фазах.
-        </Text>
-      </View>
+      <Card style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/backup')}
+          style={({ pressed }) => [
+            styles.row,
+            { opacity: pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Text style={[styles.rowTitle, { color: colors.text }]}>
+            Резервная копия
+          </Text>
+          <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
+            Создать или восстановить .myhomebackup
+          </Text>
+        </Pressable>
+
+        <Divider />
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/export')}
+          style={({ pressed }) => [
+            styles.row,
+            { opacity: pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Text style={[styles.rowTitle, { color: colors.text }]}>
+            Экспорт данных
+          </Text>
+          <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
+            CSV для имущества, гарантий, ТО и расходников
+          </Text>
+        </Pressable>
+      </Card>
     </Screen>
   );
 }
@@ -62,11 +93,20 @@ const styles = StyleSheet.create({
   value: {
     ...typography.body,
   },
-  note: {
+  actions: {
     marginTop: spacing.lg,
   },
-  noteText: {
+  row: {
+    minHeight: 56,
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+  },
+  rowTitle: {
+    ...typography.body,
+    fontWeight: '600',
+  },
+  rowMeta: {
     ...typography.caption,
-    textAlign: 'center',
+    marginTop: 2,
   },
 });

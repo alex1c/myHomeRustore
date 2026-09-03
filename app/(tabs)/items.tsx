@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FilterChips } from '@/components/inventory/FilterChips';
 import { ItemCard } from '@/components/inventory/ItemCard';
+import { AppBanner } from '@/components/ads/AppBanner';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { TextField } from '@/components/ui/TextField';
@@ -138,7 +139,7 @@ export default function ItemsScreen() {
         )}
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: insets.bottom + 88 },
+          { paddingBottom: insets.bottom + 140 },
           isEmpty ? styles.listEmpty : null,
         ]}
         ListHeaderComponent={
@@ -213,6 +214,7 @@ export default function ItemsScreen() {
           { paddingBottom: insets.bottom + spacing.sm, backgroundColor: colors.background },
         ]}
       >
+        <AppBanner placement="inventory" />
         <Button
           title="+ Добавить вещь"
           onPress={() => router.push('/item/add')}

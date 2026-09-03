@@ -15,6 +15,7 @@ import type { SqlDatabase } from '@/src/db/types';
 import { ItemRepository } from '@/src/repositories/itemRepository';
 import { LocationRepository } from '@/src/repositories/locationRepository';
 import { PurchaseRepository } from '@/src/repositories/purchaseRepository';
+import { Analytics } from '@/src/services/AnalyticsService';
 import { parseRubToMinor } from '@/src/utils/money';
 
 function resolveCategory(values: ItemFormValues): string {
@@ -112,6 +113,8 @@ export class InventoryService {
         priceMinor: values.priceText.trim() ? parsePrice(values.priceText) : null,
       });
 
+      // Privacy-safe: category enum/label only — never name, price, or notes.
+      Analytics.itemCreated(item.category);
       return item;
     });
   }

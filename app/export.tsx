@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
 import type { CsvExportKind } from '@/src/services/backup/exportService';
+import { Analytics } from '@/src/services/AnalyticsService';
+import { InterstitialAdService } from '@/src/services/InterstitialAdService';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { useThemeColors } from '@/src/theme/useThemeColors';
@@ -53,6 +55,9 @@ export default function ExportScreen() {
           dialogTitle: 'Экспорт данных',
           UTI: 'public.comma-separated-values-text',
         });
+        // Kind only (inventory/warranties/…) — never file paths or content.
+        Analytics.exportCsv(kind);
+        void InterstitialAdService.onExportCsv();
       }
     } catch {
       Alert.alert('Ошибка', 'Не удалось экспортировать данные');

@@ -76,7 +76,7 @@ export default function DocumentsScreen() {
   }, [items, propertyId]);
 
   return (
-    <Screen>
+    <Screen banner="documents">
       <Text style={[styles.title, { color: colors.text }]}>Документы</Text>
 
       <TextInput

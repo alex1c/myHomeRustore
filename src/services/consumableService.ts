@@ -24,6 +24,7 @@ import {
 } from '@/src/repositories/consumableRepository';
 import { ItemRepository } from '@/src/repositories/itemRepository';
 import { ReminderRepository } from '@/src/repositories/reminderRepository';
+import { Analytics } from '@/src/services/AnalyticsService';
 import type { NotificationAdapter } from '@/src/services/notificationAdapter';
 import {
   ConsumableReminderService,
@@ -166,6 +167,8 @@ export class ConsumableService {
       values.remindersEnabled && nextDueDate != null,
     );
 
+    // No consumable name / stock quantities in analytics.
+    Analytics.consumableCreated();
     return { consumable, reminders };
   }
 
@@ -245,6 +248,8 @@ export class ConsumableService {
         occurredDate: performedDate,
         note: note ?? null,
       });
+      // History-only backdated replacement still counts as a successful replace.
+      Analytics.consumableReplaced();
       return {
         event,
         consumable: existing,
@@ -303,6 +308,8 @@ export class ConsumableService {
       preferred.enabled && consumable.nextDueDate != null,
     );
 
+    // Count replacement success; never send stock amounts or names.
+    Analytics.consumableReplaced();
     return { event, consumable, reminders, stockWasZero };
   }
 
@@ -321,7 +328,7 @@ export class ConsumableService {
       throw new AppError('Для этого расходника запас не ведётся');
     }
 
-    return this.db.withTransaction(() => {
+    const result = this.db.withTransaction(() => {
       const stockBefore = existing.stockQuantity!;
       const stockAfter = stockBefore + amount;
       if (!Number.isSafeInteger(stockAfter)) {
@@ -343,6 +350,9 @@ export class ConsumableService {
       });
       return { consumable, event };
     });
+    // Kind only ('add' | 'set') — never quantities.
+    Analytics.stockUpdated('add');
+    return result;
   }
 
   /** Set absolute stock without changing replacement schedule. */
@@ -357,7 +367,7 @@ export class ConsumableService {
     const existing = this.consumables.getById(consumableId);
     if (!existing) throw new AppError('Расходник не найден', { code: 'NOT_FOUND' });
 
-    return this.db.withTransaction(() => {
+    const result = this.db.withTransaction(() => {
       const stockBefore = existing.stockQuantity;
       const event = this.consumables.createEvent({
         itemId: existing.itemId,
@@ -376,6 +386,8 @@ export class ConsumableService {
       });
       return { consumable, event };
     });
+    Analytics.stockUpdated('set');
+    return result;
   }
 
   async addHistoryReplacement(

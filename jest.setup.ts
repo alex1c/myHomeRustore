@@ -1,5 +1,5 @@
 /**
- * Mock expo-notifications for Node/Jest test environment.
+ * Mock expo-notifications and native monetization SDKs for Node/Jest.
  */
 
 jest.mock('expo-notifications', () => ({
@@ -13,4 +13,25 @@ jest.mock('expo-notifications', () => ({
   cancelScheduledNotificationAsync: jest.fn(),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   getLastNotificationResponseAsync: jest.fn(async () => null),
+}));
+
+jest.mock('@appmetrica/react-native-analytics', () => ({
+  __esModule: true,
+  default: {
+    activate: jest.fn(),
+    reportEvent: jest.fn(),
+  },
+}));
+
+jest.mock('yandex-mobile-ads', () => ({
+  MobileAds: { initialize: jest.fn(async () => undefined) },
+  BannerAdSize: {
+    stickySize: jest.fn(async () => ({ width: 320, height: 50 })),
+  },
+  BannerView: 'BannerView',
+  InterstitialAdLoader: {
+    create: jest.fn(async () => ({
+      loadAd: jest.fn(async () => null),
+    })),
+  },
 }));

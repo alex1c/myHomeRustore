@@ -9,6 +9,7 @@ import type { SqlDatabase } from '@/src/db/types';
 import { ItemRepository } from '@/src/repositories/itemRepository';
 import { PurchaseRepository } from '@/src/repositories/purchaseRepository';
 import { WarrantyRepository } from '@/src/repositories/warrantyRepository';
+import { Analytics } from '@/src/services/AnalyticsService';
 import type { NotificationAdapter } from '@/src/services/notificationAdapter';
 import {
   WarrantyReminderService,
@@ -88,6 +89,8 @@ export class WarrantyService {
       values.remindersEnabled,
     );
 
+    // Privacy-safe: warranty type only (e.g. shop/manufacturer).
+    Analytics.warrantyCreated(warranty.type);
     return { warranty, reminders };
   }
 

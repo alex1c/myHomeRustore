@@ -1,17 +1,19 @@
 /**
- * Root layout — theme, splash, and database bootstrap.
+ * Root layout — theme, splash, database, monetization, onboarding gate.
  */
 
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { DatabaseProvider, useDatabase } from '@/src/providers/DatabaseProvider';
 import { useNotificationNavigation } from '@/src/hooks/useNotificationNavigation';
+import { bootstrapMonetization } from '@/src/monetization/bootstrap';
+import { ONBOARDING_SETTING_KEY } from '@/src/monetization/config';
 import { darkColors, lightColors } from '@/src/theme/tokens';
 
 export { ErrorBoundary } from 'expo-router';
@@ -73,11 +75,14 @@ function RootLayoutNav() {
 
   return (
     <DatabaseProvider>
+      <MonetizationBootstrap />
+      <OnboardingGate />
       <NotificationNavigationObserver />
       <ThemeProvider value={colorScheme === 'dark' ? DarkNavTheme : LightNavTheme}>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
           <Stack.Screen name="item/add" options={{ title: 'Новая вещь' }} />
           <Stack.Screen name="item/[id]" options={{ title: 'Вещь' }} />
           <Stack.Screen name="item/edit/[id]" options={{ title: 'Редактировать' }} />
@@ -98,6 +103,36 @@ function RootLayoutNav() {
       </ThemeProvider>
     </DatabaseProvider>
   );
+}
+
+function MonetizationBootstrap() {
+  const { ready, settings } = useDatabase();
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!ready || !settings || started.current) return;
+    started.current = true;
+    void bootstrapMonetization(settings);
+  }, [ready, settings]);
+
+  return null;
+}
+
+function OnboardingGate() {
+  const { ready, settings } = useDatabase();
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (!ready || !settings) return;
+    const done = settings.get(ONBOARDING_SETTING_KEY) === '1';
+    const onOnboarding = segments[0] === 'onboarding';
+    if (!done && !onOnboarding) {
+      router.replace('/onboarding');
+    }
+  }, [ready, settings, segments, router]);
+
+  return null;
 }
 
 function NotificationNavigationObserver() {

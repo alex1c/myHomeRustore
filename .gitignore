@@ -37,6 +37,8 @@ yarn-error.*
 *.aab
 *.keystore
 
+# release binaries (icons/screenshots may be committed separately)
+release-artifacts/
 
 # typescript
 *.tsbuildinfo

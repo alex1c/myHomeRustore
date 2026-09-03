@@ -27,6 +27,7 @@ import {
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { subscribeDataReset } from '@/src/services/dataReset';
+import { Analytics } from '@/src/services/AnalyticsService';
 import { useThemeColors } from '@/src/theme/useThemeColors';
 import { spacing, typography } from '@/src/theme/tokens';
 import {
@@ -106,6 +107,8 @@ export default function TodayScreen() {
     : 0;
 
   const navigateAttention = (item: TodayAttentionItem) => {
+    // Kind only (warranty | maintenance | consumable) — no titles.
+    Analytics.todayAttentionOpened(item.kind);
     if (item.kind === 'warranty') {
       router.push({ pathname: '/warranty/[id]', params: { id: item.entityId } });
       return;
@@ -151,6 +154,7 @@ export default function TodayScreen() {
     setBusyId(item.id);
     try {
       await maintenanceService.markDone(item.entityId);
+      Analytics.todayQuickAction('mark_done');
       Alert.alert('Готово', 'Отмечено выполненным');
       load();
     } catch {
@@ -173,6 +177,7 @@ export default function TodayScreen() {
         null,
         { allowZeroStock },
       );
+      Analytics.todayQuickAction('mark_replaced');
       Alert.alert('Готово', 'Замена отмечена');
       load();
     } catch (err) {
@@ -236,7 +241,7 @@ export default function TodayScreen() {
   const isEmptyHome = (counts?.items ?? 0) === 0;
 
   return (
-    <Screen scroll>
+    <Screen scroll banner="today">
       <Text style={[styles.greeting, { color: colors.text }]}>
         {todayGreeting()}
       </Text>

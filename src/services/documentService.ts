@@ -8,6 +8,7 @@ import type { Document, DocumentType } from '@/src/domain/types';
 import type { SqlDatabase } from '@/src/db/types';
 import { DocumentRepository } from '@/src/repositories/documentRepository';
 import { ItemRepository } from '@/src/repositories/itemRepository';
+import { Analytics } from '@/src/services/AnalyticsService';
 import {
   deleteManagedFileByRelativePath,
   importManagedFile,
@@ -68,7 +69,7 @@ export class DocumentService {
     }
 
     try {
-      return this.documents.create({
+      const doc = this.documents.create({
         itemId: input.itemId,
         type: input.type,
         title,
@@ -77,6 +78,9 @@ export class DocumentService {
         originalName: input.file.originalName ?? null,
         fileSize: input.file.fileSize ?? null,
       });
+      // Privacy-safe: document type only — never title, path, or filename.
+      Analytics.documentAdded(doc.type);
+      return doc;
     } catch (err) {
       try {
         await deleteManagedFileByRelativePath(relativePath);

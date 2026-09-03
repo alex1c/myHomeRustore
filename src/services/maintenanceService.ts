@@ -23,6 +23,7 @@ import {
   type MaintenanceListRow,
 } from '@/src/repositories/maintenanceRepository';
 import { ReminderRepository } from '@/src/repositories/reminderRepository';
+import { Analytics } from '@/src/services/AnalyticsService';
 import type { NotificationAdapter } from '@/src/services/notificationAdapter';
 import {
   MaintenanceReminderService,
@@ -133,6 +134,8 @@ export class MaintenanceService {
       values.remindersEnabled,
     );
 
+    // Count successful creates only; no titles or notes.
+    Analytics.maintenanceCreated();
     return { rule, reminders };
   }
 
@@ -218,6 +221,8 @@ export class MaintenanceService {
       preferred.enabled,
     );
 
+    // Fired after DB commit + reminder reschedule succeed.
+    Analytics.maintenanceCompleted();
     return { event, rule, reminders };
   }
 

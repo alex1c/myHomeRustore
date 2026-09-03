@@ -4,7 +4,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
 import type { Document, Warranty } from '@/src/domain/types';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
+import { Analytics } from '@/src/services/AnalyticsService';
 import { useThemeColors } from '@/src/theme/useThemeColors';
 import { spacing, typography } from '@/src/theme/tokens';
 import { formatRussianDate } from '@/src/utils/formatDate';
@@ -31,6 +32,8 @@ export default function WarrantyDetailScreen() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [itemName, setItemName] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Track once per mount so reopen/focus does not spam the event.
+  const expiringOpenedSent = useRef(false);
 
   const load = useCallback(() => {
     if (!warrantyService || !documentService || !inventory || !id) return;
@@ -51,6 +54,16 @@ export default function WarrantyDetailScreen() {
       load();
     }, [load]),
   );
+
+  // Optional: when opened while expiring soon (e.g. from Today attention).
+  useEffect(() => {
+    if (!warranty || expiringOpenedSent.current) return;
+    const status = presentWarrantyStatus(warranty);
+    if (status.kind === 'expiring_soon') {
+      expiringOpenedSent.current = true;
+      Analytics.warrantyExpiringOpened();
+    }
+  }, [warranty]);
 
   const confirmDelete = () => {
     if (!warranty || deleting) return;

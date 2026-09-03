@@ -5,6 +5,7 @@
 
 import { ItemRepository } from '@/src/repositories/itemRepository';
 import type { SqlDatabase } from '@/src/db/types';
+import { Analytics } from '@/src/services/AnalyticsService';
 import { deleteManagedFileByRelativePath } from '@/src/services/managedFileService';
 import { ReminderRepository } from '@/src/repositories/reminderRepository';
 import type { NotificationAdapter } from '@/src/services/notificationAdapter';
@@ -26,6 +27,8 @@ export class ItemDeletionService {
     const paths = this.items.listManagedFilePathsForItem(itemId);
     const notificationIds = this.reminders.listNotificationIdsByItemId(itemId);
     this.items.deleteItem(itemId);
+    // Fire after DB delete succeeds; no item identifiers or file paths.
+    Analytics.itemDeleted();
     await Promise.allSettled([
       ...paths.map((p) => deleteManagedFileByRelativePath(p)),
       ...notificationIds.map((id) => this.notifications.cancel(id)),

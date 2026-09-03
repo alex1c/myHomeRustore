@@ -1,5 +1,5 @@
 /**
- * Screen shell with safe areas and optional scroll.
+ * Screen shell with safe areas, optional scroll, and at most one banner.
  */
 
 import React, { type ReactNode } from 'react';
@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppBanner } from '@/components/ads/AppBanner';
+import type { BannerPlacement } from '@/src/monetization/config';
 import { useThemeColors } from '@/src/theme/useThemeColors';
 import { spacing } from '@/src/theme/tokens';
 
@@ -20,6 +22,8 @@ type ScreenProps = {
   scroll?: boolean;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
+  /** At most one banner; omit on ad-free screens (forms, restore, onboarding). */
+  banner?: BannerPlacement;
 };
 
 export function Screen({
@@ -27,11 +31,13 @@ export function Screen({
   scroll = false,
   style,
   contentStyle,
+  banner,
 }: ScreenProps) {
   const colors = useThemeColors();
 
   const body = scroll ? (
     <ScrollView
+      style={styles.flex}
       contentContainerStyle={[styles.content, contentStyle]}
       keyboardShouldPersistTaps="handled"
     >
@@ -47,6 +53,7 @@ export function Screen({
       edges={['top', 'left', 'right']}
     >
       {body}
+      {banner ? <AppBanner placement={banner} /> : null}
     </SafeAreaView>
   );
 }

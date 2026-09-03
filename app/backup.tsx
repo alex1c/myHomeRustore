@@ -19,6 +19,8 @@ import { Screen } from '@/components/ui/Screen';
 import type { BackupPreview } from '@/src/domain/backup';
 import { AppError } from '@/src/domain/errors';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
+import { Analytics } from '@/src/services/AnalyticsService';
+import { InterstitialAdService } from '@/src/services/InterstitialAdService';
 import { useThemeColors } from '@/src/theme/useThemeColors';
 import { spacing, typography } from '@/src/theme/tokens';
 import { formatRussianDate } from '@/src/utils/formatDate';
@@ -37,6 +39,9 @@ export default function BackupScreen() {
     setBusy(true);
     try {
       const result = await backupService.createAndShare();
+      Analytics.backupCreated();
+      // Show interstitial after backup succeeds (not over the success alert).
+      void InterstitialAdService.onBackupCreated();
       const extra =
         result.warnings.length > 0
           ? `\n\nПредупреждения: ${result.warnings.length}`
@@ -115,12 +120,20 @@ export default function BackupScreen() {
       const result = await restoreService.restoreFromBytes(pendingBytes);
       setPreview(null);
       setPendingBytes(null);
+      Analytics.restoreCompleted();
       const reminderNote =
         result.permissionDenied || result.remindersFailed > 0
           ? '\n\nДанные восстановлены, но некоторые напоминания не удалось создать.'
           : '';
+      // Interstitial only after user dismisses success feedback.
       Alert.alert('Готово', `Данные восстановлены.${reminderNote}`, [
-        { text: 'OK', onPress: () => router.back() },
+        {
+          text: 'OK',
+          onPress: () => {
+            router.back();
+            void InterstitialAdService.onRestoreCompleted();
+          },
+        },
       ]);
     } catch (err) {
       Alert.alert(

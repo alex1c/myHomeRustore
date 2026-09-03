@@ -167,7 +167,7 @@ export default function MaintenanceScreen() {
   }, [mode, maintenanceFilter, consumableFilter]);
 
   return (
-    <Screen>
+    <Screen banner="maintenance">
       <Text style={[styles.title, { color: colors.text }]}>Обслуживание</Text>
       <Text style={[styles.date, { color: colors.textSecondary }]}>
         {toLocalDateOnly()}

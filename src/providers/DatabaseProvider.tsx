@@ -35,6 +35,7 @@ import { WarrantyService } from '@/src/services/warrantyService';
 import { MaintenanceService } from '@/src/services/maintenanceService';
 import { ConsumableService } from '@/src/services/consumableService';
 import { ConsumableRepository } from '@/src/repositories/consumableRepository';
+import { TodayService } from '@/src/services/todayService';
 
 export type DatabaseContextValue = {
   ready: boolean;
@@ -57,6 +58,7 @@ export type DatabaseContextValue = {
   documentService: DocumentService | null;
   maintenanceService: MaintenanceService | null;
   consumableService: ConsumableService | null;
+  todayService: TodayService | null;
   notifications: NotificationAdapter | null;
 };
 
@@ -113,6 +115,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         maintenanceService: null,
         consumableService: null,
         consumables: null,
+        todayService: null,
         notifications: null,
       };
     }
@@ -140,6 +143,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       documentService: new DocumentService(db),
       maintenanceService: new MaintenanceService(db, notifications),
       consumableService: new ConsumableService(db, notifications),
+      todayService: new TodayService(db),
       notifications,
     };
   }, [db, error]);

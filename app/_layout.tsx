@@ -2,7 +2,15 @@
  * Root layout — theme, splash, database, monetization, onboarding gate.
  */
 
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  type Href,
+  Stack,
+  ThemeProvider,
+  useRouter,
+  useSegments,
+} from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -126,9 +134,9 @@ function OnboardingGate() {
   useEffect(() => {
     if (!ready || !settings) return;
     const done = settings.get(ONBOARDING_SETTING_KEY) === '1';
-    const onOnboarding = segments[0] === 'onboarding';
+    const onOnboarding = segments.join('/') === 'onboarding';
     if (!done && !onOnboarding) {
-      router.replace('/onboarding');
+      router.replace('/onboarding' as Href);
     }
   }, [ready, settings, segments, router]);
 

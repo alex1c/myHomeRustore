@@ -19,6 +19,7 @@ import { Screen } from '@/components/ui/Screen';
 import type { ItemFormValues, PendingPhoto } from '@/src/domain/inventory';
 import { AppError } from '@/src/domain/errors';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
+import { usePropertyLocations } from '@/src/hooks/usePropertyLocations';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { spacing } from '@/src/theme/tokens';
 import { minorToPriceInput } from '@/src/utils/money';
@@ -27,18 +28,18 @@ export default function EditItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { propertyId } = useActiveProperty();
-  const { inventory, locations, items, itemPhotos } = useDatabase();
+  const { inventory, items, itemPhotos } = useDatabase();
+  const {
+    list: propertyLocations,
+    refresh: refreshLocations,
+    repository: locations,
+  } = usePropertyLocations(propertyId);
   const [values, setValues] = useState<ItemFormValues>(EMPTY_ITEM_FORM);
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
   const [removePhoto, setRemovePhoto] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [existingPhotoPath, setExistingPhotoPath] = useState<string | null>(null);
-
-  const propertyLocations = useMemo(() => {
-    if (!propertyId || !locations) return [];
-    return locations.listByProperty(propertyId);
-  }, [propertyId, locations]);
 
   const extraCategories = useMemo(() => {
     if (!propertyId || !inventory) return [];
@@ -149,13 +150,19 @@ export default function EditItemScreen() {
               removeExistingPhoto={removePhoto}
               onRemoveExistingPhoto={() => setRemovePhoto(true)}
               nameError={nameError}
-              onCreateLocation={(name) =>
-                locations.createLocation({ propertyId, name })
-              }
-              onRenameLocation={(locId, name) => locations.updateLocation(locId, name)}
-              onDeleteLocation={(locId, unlink) =>
-                locations.deleteLocation(locId, { unlinkItems: unlink })
-              }
+              onCreateLocation={(name) => {
+                const created = locations.createLocation({ propertyId, name });
+                refreshLocations();
+                return created;
+              }}
+              onRenameLocation={(locId, name) => {
+                locations.updateLocation(locId, name);
+                refreshLocations();
+              }}
+              onDeleteLocation={(locId, unlink) => {
+                locations.deleteLocation(locId, { unlinkItems: unlink });
+                refreshLocations();
+              }}
               getLocationItemCount={(locId) => items.countAtLocation(locId)}
             />
             <Button

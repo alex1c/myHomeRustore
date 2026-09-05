@@ -65,9 +65,19 @@ export function LocationSelect({
       Alert.alert('Введите название места');
       return;
     }
-    const created = onCreate(trimmed);
-    onChange(created.id);
-    close();
+    try {
+      // Parent refresh must happen inside onCreate so the returned id
+      // is already present in `locations` on the next render.
+      const created = onCreate(trimmed);
+      onChange(created.id);
+      close();
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Не удалось создать место';
+      Alert.alert('Ошибка', message);
+    }
   };
 
   const startManage = (location: Location) => {
@@ -78,9 +88,22 @@ export function LocationSelect({
 
   const handleRename = () => {
     if (!manageId) return;
-    onRename(manageId, renameText);
-    setMode('pick');
-    setManageId(null);
+    const trimmed = renameText.trim();
+    if (!trimmed) {
+      Alert.alert('Введите название места');
+      return;
+    }
+    try {
+      onRename(manageId, trimmed);
+      setMode('pick');
+      setManageId(null);
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Не удалось переименовать место';
+      Alert.alert('Ошибка', message);
+    }
   };
 
   const handleDelete = (location: Location) => {

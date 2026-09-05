@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-09-05T07:47:08.149Z",
+  "referenceDate": "2026-09-05",
+  "propertyId": "default-property",
+  "locationCount": 4,
+  "itemCount": 5,
+  "warrantyCount": 4,
+  "documentCount": 5,
+  "maintenanceCount": 4,
+  "consumableCount": 3,
+  "todayAttentionCount": 6,
+  "note": "DEVELOPMENT ONLY — never ship as production auto-seed"
+}

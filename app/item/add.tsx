@@ -19,22 +19,23 @@ import { Screen } from '@/components/ui/Screen';
 import type { ItemFormValues, PendingPhoto } from '@/src/domain/inventory';
 import { AppError } from '@/src/domain/errors';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
+import { usePropertyLocations } from '@/src/hooks/usePropertyLocations';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { spacing } from '@/src/theme/tokens';
 
 export default function AddItemScreen() {
   const router = useRouter();
   const { propertyId } = useActiveProperty();
-  const { inventory, locations, items, itemPhotos } = useDatabase();
+  const { inventory, items, itemPhotos } = useDatabase();
+  const {
+    list: propertyLocations,
+    refresh: refreshLocations,
+    repository: locations,
+  } = usePropertyLocations(propertyId);
   const [values, setValues] = useState<ItemFormValues>(EMPTY_ITEM_FORM);
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const propertyLocations = useMemo(() => {
-    if (!propertyId || !locations) return [];
-    return locations.listByProperty(propertyId);
-  }, [propertyId, locations]);
 
   const extraCategories = useMemo(() => {
     if (!propertyId || !inventory) return [];
@@ -103,13 +104,19 @@ export default function AddItemScreen() {
               removeExistingPhoto={false}
               onRemoveExistingPhoto={() => {}}
               nameError={nameError}
-              onCreateLocation={(name) =>
-                locations.createLocation({ propertyId, name })
-              }
-              onRenameLocation={(id, name) => locations.updateLocation(id, name)}
-              onDeleteLocation={(id, unlink) =>
-                locations.deleteLocation(id, { unlinkItems: unlink })
-              }
+              onCreateLocation={(name) => {
+                const created = locations.createLocation({ propertyId, name });
+                refreshLocations();
+                return created;
+              }}
+              onRenameLocation={(id, name) => {
+                locations.updateLocation(id, name);
+                refreshLocations();
+              }}
+              onDeleteLocation={(id, unlink) => {
+                locations.deleteLocation(id, { unlinkItems: unlink });
+                refreshLocations();
+              }}
               getLocationItemCount={(id) => items.countAtLocation(id)}
             />
             <Button

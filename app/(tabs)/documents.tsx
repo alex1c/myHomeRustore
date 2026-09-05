@@ -1,8 +1,8 @@
 /**
- * Documents tab — global archive with search and type filters.
+ * Documents tab — global archive with search, type filters, and add entry.
  */
 
-import { useFocusEffect, useRouter } from 'expo-router';
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
@@ -65,15 +65,21 @@ export default function DocumentsScreen() {
 
   useEffect(() => subscribeDataReset(() => load()), [load]);
 
-  const itemOptions = useMemo(() => {
-    if (!items || !propertyId) return [];
-    return items.listFiltered(propertyId, {
-      search: '',
-      location: { type: 'all' },
-      category: { type: 'all' },
-      sort: 'name',
-    });
+  const itemCount = useMemo(() => {
+    if (!items || !propertyId) return 0;
+    return items.countActive(propertyId);
   }, [items, propertyId]);
+
+  const openAddFlow = () => {
+    if (itemCount === 0) {
+      router.push('/item/add' as Href);
+      return;
+    }
+    router.push({
+      pathname: '/select-item',
+      params: { purpose: 'document' },
+    } as Href);
+  };
 
   return (
     <Screen banner="documents">
@@ -103,7 +109,11 @@ export default function DocumentsScreen() {
       {rows.length === 0 ? (
         <EmptyState
           title="Документов пока нет"
-          message="Сохраняйте чеки, гарантийные талоны и инструкции рядом с вещами."
+          message={
+            itemCount === 0
+              ? 'Сначала добавьте вещь, затем сохраните чек или инструкцию.'
+              : 'Сохраняйте чеки, гарантийные талоны и инструкции рядом с вещами.'
+          }
         />
       ) : (
         <FlatList
@@ -113,22 +123,26 @@ export default function DocumentsScreen() {
             <DocumentCard
               document={row.document}
               itemName={row.itemName}
-              onPress={() => router.push({ pathname: '/document/[id]', params: { id: row.document.id } })}
+              onPress={() =>
+                router.push({
+                  pathname: '/document/[id]',
+                  params: { id: row.document.id },
+                })
+              }
             />
           )}
           contentContainerStyle={styles.list}
         />
       )}
 
-      {itemOptions.length > 0 ? (
-        <View style={styles.footer}>
-          <Button
-            title="Выбрать вещь"
-            variant="secondary"
-            onPress={() => router.push('/items')}
-          />
-        </View>
-      ) : null}
+      <View style={styles.footer}>
+        <Button
+          title={
+            itemCount === 0 ? 'Добавить вещь' : '+ Добавить документ'
+          }
+          onPress={openAddFlow}
+        />
+      </View>
     </Screen>
   );
 }

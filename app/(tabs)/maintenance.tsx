@@ -2,7 +2,7 @@
  * Maintenance tab with ТО / Расходники switch.
  */
 
-import { useFocusEffect, useRouter } from 'expo-router';
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
 import { ConsumableCard } from '@/components/consumables/ConsumableCard';
 import { MaintenanceCard } from '@/components/maintenance/MaintenanceCard';
 import { FilterChips } from '@/components/inventory/FilterChips';
+import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import type { ConsumableFilter } from '@/src/domain/consumables';
@@ -49,7 +50,7 @@ const CONSUMABLE_FILTERS = [
 export default function MaintenanceScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const { ready, maintenanceService, consumableService } = useDatabase();
+  const { ready, maintenanceService, consumableService, items } = useDatabase();
   const { propertyId } = useActiveProperty();
   const [mode, setMode] = useState<TabMode>('maintenance');
   const [search, setSearch] = useState('');
@@ -60,6 +61,24 @@ export default function MaintenanceScreen() {
   const [maintenanceRows, setMaintenanceRows] = useState<MaintenanceListRow[]>([]);
   const [consumableRows, setConsumableRows] = useState<ConsumableListRow[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const itemCount = useMemo(() => {
+    if (!items || !propertyId) return 0;
+    return items.countActive(propertyId);
+  }, [items, propertyId]);
+
+  const openAddFlow = () => {
+    if (itemCount === 0) {
+      router.push('/item/add' as Href);
+      return;
+    }
+    router.push({
+      pathname: '/select-item',
+      params: {
+        purpose: mode === 'maintenance' ? 'maintenance' : 'consumable',
+      },
+    } as Href);
+  };
 
   const load = useCallback(() => {
     if (!ready || !propertyId) return;
@@ -156,15 +175,18 @@ export default function MaintenanceScreen() {
   };
 
   const emptyMessage = useMemo(() => {
+    if (itemCount === 0) {
+      return 'Сначала добавьте вещь, затем запланируйте обслуживание.';
+    }
     if (mode === 'maintenance') {
       if (maintenanceFilter === 'overdue') return 'Нет просроченных работ.';
       if (maintenanceFilter === 'upcoming') return 'Нет предстоящих работ.';
-      return 'Добавьте обслуживание в карточке вещи.';
+      return 'Добавьте обслуживание для выбранной вещи.';
     }
     if (consumableFilter === 'out_of_stock') return 'Нет расходников с нулевым запасом.';
     if (consumableFilter === 'attention') return 'Сейчас ничего не требует внимания.';
-    return 'Добавьте расходник в карточке вещи.';
-  }, [mode, maintenanceFilter, consumableFilter]);
+    return 'Добавьте расходник для выбранной вещи.';
+  }, [mode, maintenanceFilter, consumableFilter, itemCount]);
 
   return (
     <Screen banner="maintenance">
@@ -281,6 +303,19 @@ export default function MaintenanceScreen() {
           )}
         />
       )}
+
+      <View style={styles.footer}>
+        <Button
+          title={
+            itemCount === 0
+              ? 'Добавить вещь'
+              : mode === 'maintenance'
+                ? '+ Добавить обслуживание'
+                : '+ Добавить расходник'
+          }
+          onPress={openAddFlow}
+        />
+      </View>
     </Screen>
   );
 }
@@ -313,5 +348,9 @@ const styles = StyleSheet.create({
   list: {
     paddingTop: spacing.sm,
     paddingBottom: spacing.xl,
+  },
+  footer: {
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
   },
 });

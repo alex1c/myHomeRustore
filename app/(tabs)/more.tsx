@@ -55,6 +55,24 @@ export default function MoreScreen() {
       <Card style={styles.actions}>
         <Pressable
           accessibilityRole="button"
+          onPress={() => router.push('/locations' as Href)}
+          style={({ pressed }) => [
+            styles.row,
+            { opacity: pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Text style={[styles.rowTitle, { color: colors.text }]}>
+            Комнаты и места
+          </Text>
+          <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
+            Добавить, переименовать или удалить место
+          </Text>
+        </Pressable>
+
+        <Divider />
+
+        <Pressable
+          accessibilityRole="button"
           onPress={() => router.push('/backup' as Href)}
           style={({ pressed }) => [
             styles.row,

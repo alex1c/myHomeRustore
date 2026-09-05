@@ -52,6 +52,21 @@ export class LocationRepository {
     return row?.c ?? 0;
   }
 
+  /**
+   * Finds an existing location by case-insensitive name within a property.
+   * Uses JS locale compare because SQLite NOCASE is ASCII-only.
+   */
+  findByName(propertyId: string, name: string): Location | null {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const needle = trimmed.toLocaleLowerCase('ru-RU');
+    return (
+      this.listByProperty(propertyId).find(
+        (loc) => loc.name.trim().toLocaleLowerCase('ru-RU') === needle,
+      ) ?? null
+    );
+  }
+
   createLocation(input: {
     propertyId: string;
     name: string;
@@ -62,6 +77,12 @@ export class LocationRepository {
     const trimmed = input.name.trim();
     if (!trimmed) {
       throw new AppError('Введите название места');
+    }
+
+    // Reuse an existing same-named place instead of inserting a duplicate.
+    const existing = this.findByName(input.propertyId, trimmed);
+    if (existing) {
+      return existing;
     }
 
     const now = nowUtcInstant();
@@ -96,6 +117,10 @@ export class LocationRepository {
     const existing = this.getById(locationId);
     if (!existing) {
       throw new AppError('Место не найдено', { code: 'NOT_FOUND' });
+    }
+    const collision = this.findByName(existing.propertyId, trimmed);
+    if (collision && collision.id !== locationId) {
+      throw new AppError('Место с таким названием уже есть');
     }
     const now = nowUtcInstant();
     this.db.run(

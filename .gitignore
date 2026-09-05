@@ -40,6 +40,10 @@ yarn-error.*
 # release binaries (icons/screenshots may be committed separately)
 release-artifacts/
 
+# generated demo sqlite (rebuild via scripts/seed-rustore-demo)
+release-assets/demo/*.db
+release-assets/screenshots/raw/
+
 # typescript
 *.tsbuildinfo
 

@@ -107,6 +107,8 @@ function RootLayoutNav() {
           <Stack.Screen name="consumable/edit/[id]" options={{ title: 'Редактировать' }} />
           <Stack.Screen name="backup" options={{ title: 'Резервная копия' }} />
           <Stack.Screen name="export" options={{ title: 'Экспорт данных' }} />
+          <Stack.Screen name="locations" options={{ title: 'Комнаты и места' }} />
+          <Stack.Screen name="select-item" options={{ title: 'Выберите вещь' }} />
         </Stack>
       </ThemeProvider>
     </DatabaseProvider>

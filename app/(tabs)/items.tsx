@@ -27,6 +27,7 @@ import {
 } from '@/src/domain/inventory';
 import { useActiveProperty } from '@/src/hooks/useActiveProperty';
 import { useDebouncedValue } from '@/src/hooks/useDebouncedValue';
+import { usePropertyLocations } from '@/src/hooks/usePropertyLocations';
 import { useDatabase } from '@/src/providers/DatabaseProvider';
 import { subscribeDataReset } from '@/src/services/dataReset';
 import { useThemeColors } from '@/src/theme/useThemeColors';
@@ -39,7 +40,8 @@ export default function ItemsScreen() {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const { propertyId, ready } = useActiveProperty();
-  const { inventory, locations, error: dbError } = useDatabase();
+  const { inventory, error: dbError } = useDatabase();
+  const { list: propertyLocations } = usePropertyLocations(propertyId);
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search);
@@ -49,11 +51,6 @@ export default function ItemsScreen() {
   const [sortMode, setSortMode] = useState<InventoryFilters['sort']>('recent');
   const [rows, setRows] = useState<ItemListRow[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const propertyLocations = useMemo(() => {
-    if (!propertyId || !locations) return [];
-    return locations.listByProperty(propertyId);
-  }, [propertyId, locations]);
 
   const extraCategories = useMemo(() => {
     if (!propertyId || !inventory) return [];

@@ -12,7 +12,7 @@ Creates a reproducible SQLite dataset for store screenshots.
 
 ```powershell
 cd D:\PetProject\myHomeRustore
-npm test -- --runInBand __tests__/seedRustoreDemo.test.ts
+npm run seed:demo
 ```
 
 Output:
@@ -20,10 +20,14 @@ Output:
 - `release-assets/demo/my_home_demo.db`
 - `release-assets/demo/summary.json`
 
-## Apply to emulator (debuggable / rooted emulator)
+## Apply to emulator (debuggable build)
+
+Expo SQLite path (required):
+
+`files/SQLite/my_home.db`
 
 ```powershell
-.\scripts\seed-rustore-demo.ps1 -Serial emulator-5554
+.\scripts\seed-rustore-demo.ps1 -Serial emulator-5556
 ```
 
-This force-stops the app, pushes the demo DB into the app databases folder, and relaunches.
+The script writes only to `files/SQLite/`, removes `-wal`/`-shm`, and cleans any stale `databases/my_home.db`.

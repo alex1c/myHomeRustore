@@ -1,5 +1,8 @@
 /**
  * Maintenance tab with ТО / Расходники switch.
+ *
+ * Layout contract: header (fixed) + flex list + footer CTA above banner.
+ * FlatList MUST have flex:1 so the add button never overlays list rows.
  */
 
 import { type Href, useFocusEffect, useRouter } from 'expo-router';
@@ -133,7 +136,7 @@ export default function MaintenanceScreen() {
       );
       load();
     } catch {
-      Alert.alert('Ошибка', 'Не удалось отметить выполнение');
+      Alert.alert('Ошибка', 'Не удалось отметить работу');
     } finally {
       setBusyId(null);
     }
@@ -188,8 +191,15 @@ export default function MaintenanceScreen() {
     return 'Добавьте расходник для выбранной вещи.';
   }, [mode, maintenanceFilter, consumableFilter, itemCount]);
 
+  const addTitle =
+    itemCount === 0
+      ? 'Добавить вещь'
+      : mode === 'maintenance'
+        ? '+ Добавить обслуживание'
+        : '+ Добавить расходник';
+
   return (
-    <Screen banner="maintenance">
+    <Screen banner="maintenance" contentStyle={styles.screenContent}>
       <Text style={[styles.title, { color: colors.text }]}>Обслуживание</Text>
       <Text style={[styles.date, { color: colors.textSecondary }]}>
         {toLocalDateOnly()}
@@ -256,71 +266,72 @@ export default function MaintenanceScreen() {
         }}
       />
 
-      {mode === 'maintenance' ? (
-        maintenanceRows.length === 0 ? (
-          <EmptyState title="Нет задач" message={emptyMessage} />
+      {/* Bounded flex region so footer CTA cannot cover list rows. */}
+      <View style={styles.listRegion}>
+        {mode === 'maintenance' ? (
+          maintenanceRows.length === 0 ? (
+            <EmptyState title="Нет задач" message={emptyMessage} />
+          ) : (
+            <FlatList
+              style={styles.listFlex}
+              data={maintenanceRows}
+              keyExtractor={(row) => row.rule.id}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item: row }) => (
+                <MaintenanceCard
+                  rule={row.rule}
+                  itemName={row.itemName}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/maintenance/[id]',
+                      params: { id: row.rule.id },
+                    })
+                  }
+                  onMarkDone={() => void handleMarkDone(row.rule.id)}
+                  markingDone={busyId === row.rule.id}
+                />
+              )}
+            />
+          )
+        ) : consumableRows.length === 0 ? (
+          <EmptyState title="Нет расходников" message={emptyMessage} />
         ) : (
           <FlatList
-            data={maintenanceRows}
-            keyExtractor={(row) => row.rule.id}
-            contentContainerStyle={styles.list}
+            style={styles.listFlex}
+            data={consumableRows}
+            keyExtractor={(row) => row.consumable.id}
+            contentContainerStyle={styles.listContent}
             renderItem={({ item: row }) => (
-              <MaintenanceCard
-                rule={row.rule}
+              <ConsumableCard
+                consumable={row.consumable}
                 itemName={row.itemName}
                 onPress={() =>
                   router.push({
-                    pathname: '/maintenance/[id]',
-                    params: { id: row.rule.id },
+                    pathname: '/consumable/[id]',
+                    params: { id: row.consumable.id },
                   })
                 }
-                onMarkDone={() => void handleMarkDone(row.rule.id)}
-                markingDone={busyId === row.rule.id}
+                onMarkReplaced={() => void handleMarkReplaced(row.consumable.id)}
+                marking={busyId === row.consumable.id}
               />
             )}
           />
-        )
-      ) : consumableRows.length === 0 ? (
-        <EmptyState title="Нет расходников" message={emptyMessage} />
-      ) : (
-        <FlatList
-          data={consumableRows}
-          keyExtractor={(row) => row.consumable.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item: row }) => (
-            <ConsumableCard
-              consumable={row.consumable}
-              itemName={row.itemName}
-              onPress={() =>
-                router.push({
-                  pathname: '/consumable/[id]',
-                  params: { id: row.consumable.id },
-                })
-              }
-              onMarkReplaced={() => void handleMarkReplaced(row.consumable.id)}
-              marking={busyId === row.consumable.id}
-            />
-          )}
-        />
-      )}
+        )}
+      </View>
 
       <View style={styles.footer}>
-        <Button
-          title={
-            itemCount === 0
-              ? 'Добавить вещь'
-              : mode === 'maintenance'
-                ? '+ Добавить обслуживание'
-                : '+ Добавить расходник'
-          }
-          onPress={openAddFlow}
-        />
+        <Button title={addTitle} onPress={openAddFlow} />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  // Keep Screen body as a column flex layout (list region absorbs leftover height).
+  screenContent: {
+    flex: 1,
+    paddingBottom: spacing.sm,
+  },
   title: { ...typography.title },
   date: { ...typography.body, marginBottom: spacing.md },
   modeRow: {
@@ -345,12 +356,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
-  list: {
+  listRegion: {
+    flex: 1,
+    minHeight: 0,
+  },
+  listFlex: {
+    flex: 1,
+  },
+  listContent: {
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.md,
   },
   footer: {
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
 });

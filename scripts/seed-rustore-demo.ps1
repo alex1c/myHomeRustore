@@ -1,11 +1,11 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Apply DEVELOPMENT-ONLY RuStore demo SQLite to a specific emulator serial.
+  Apply DEVELOPMENT-ONLY RuStore demo SQLite to Expo's real DB path.
 
 .DESCRIPTION
+  Expo SQLite stores the DB at files/SQLite/my_home.db (NOT databases/).
   Prefers run-as (debuggable builds). Falls back to adb root when available.
-  Does not touch other adb devices. Never used by production UX.
 #>
 param(
   [Parameter(Mandatory = $false)]
@@ -38,6 +38,12 @@ if (-not (Test-Path $DbSource)) {
   throw "Demo DB not found: $DbSource"
 }
 
+# Expo SQLite path — never write to databases/my_home.db
+$sqliteRelDir = 'files/SQLite'
+$dbFileName = 'my_home.db'
+$absoluteDbDir = "/data/data/$Package/$sqliteRelDir"
+$absoluteDbPath = "$absoluteDbDir/$dbFileName"
+
 $serialArgs = @()
 if ($Serial) {
   $serialArgs = @('-s', $Serial)
@@ -63,6 +69,14 @@ function Invoke-AdbShell {
   }
 }
 
+function Test-RemoteFile {
+  param([Parameter(Mandatory = $true)][string]$RemotePath)
+  $out = & adb @serialArgs shell "ls -l $RemotePath" 2>&1 | Out-String
+  if ($LASTEXITCODE -ne 0) { return $false }
+  if ($out -match 'No such file') { return $false }
+  return $true
+}
+
 Invoke-AdbShell "am force-stop $Package"
 
 $tmpHost = Join-Path $env:TEMP 'my_home_demo.db'
@@ -73,11 +87,19 @@ Invoke-Adb push $tmpHost $tmpDevice | Out-Null
 $applied = $false
 
 try {
-  Invoke-AdbShell "run-as $Package mkdir -p databases"
-  Invoke-AdbShell "run-as $Package cp $tmpDevice databases/my_home.db"
-  Invoke-AdbShell "run-as $Package sh -c 'rm -f databases/my_home.db-wal databases/my_home.db-shm'"
+  # Relative paths inside run-as cwd (= app data root).
+  Invoke-AdbShell "run-as $Package mkdir -p $sqliteRelDir"
+  Invoke-AdbShell "run-as $Package cp $tmpDevice $sqliteRelDir/$dbFileName"
+  Invoke-AdbShell "run-as $Package sh -c 'rm -f $sqliteRelDir/$dbFileName-wal $sqliteRelDir/$dbFileName-shm'"
+  if (-not (Test-RemoteFile "$absoluteDbPath")) {
+    # run-as ls may need package-relative check:
+    $check = & adb @serialArgs shell "run-as $Package ls -l $sqliteRelDir/$dbFileName" 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0 -or $check -match 'No such file') {
+      throw "Target missing after run-as copy: $sqliteRelDir/$dbFileName"
+    }
+  }
   $applied = $true
-  Write-Host 'Applied demo DB via run-as'
+  Write-Host "Applied demo DB via run-as -> $sqliteRelDir/$dbFileName"
 } catch {
   Write-Host "run-as failed: $($_.Exception.Message)"
 }
@@ -86,13 +108,15 @@ if (-not $applied) {
   try {
     & adb @serialArgs root | Out-Null
     Start-Sleep -Seconds 2
-    $dbDir = "/data/data/$Package/databases"
-    Invoke-AdbShell "mkdir -p $dbDir"
-    Invoke-AdbShell "cp $tmpDevice $dbDir/my_home.db"
-    Invoke-AdbShell "rm -f $dbDir/my_home.db-wal $dbDir/my_home.db-shm"
-    Invoke-AdbShell "chmod 666 $dbDir/my_home.db"
+    Invoke-AdbShell "mkdir -p $absoluteDbDir"
+    Invoke-AdbShell "cp $tmpDevice $absoluteDbPath"
+    Invoke-AdbShell "rm -f $absoluteDbPath-wal $absoluteDbPath-shm"
+    Invoke-AdbShell "chmod 666 $absoluteDbPath"
+    if (-not (Test-RemoteFile $absoluteDbPath)) {
+      throw "Target missing after root copy: $absoluteDbPath"
+    }
     $applied = $true
-    Write-Host 'Applied demo DB via adb root'
+    Write-Host "Applied demo DB via adb root -> $absoluteDbPath"
   } catch {
     Write-Host "root fallback failed: $($_.Exception.Message)"
   }
@@ -100,9 +124,14 @@ if (-not $applied) {
 
 try { Invoke-AdbShell "rm -f $tmpDevice" } catch { }
 
+# Clean stale wrong-path copy if present from older scripts.
+try {
+  Invoke-AdbShell "run-as $Package rm -f databases/my_home.db databases/my_home.db-wal databases/my_home.db-shm"
+} catch { }
+
 if (-not $applied) {
   throw 'Could not write demo DB. Use a debuggable APK or a rooted emulator image.'
 }
 
 Invoke-AdbShell "monkey -p $Package -c android.intent.category.LAUNCHER 1"
-Write-Host "Demo DB applied to $Package"
+Write-Host "Demo DB applied to $Package ($sqliteRelDir/$dbFileName)"

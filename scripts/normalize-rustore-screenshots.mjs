@@ -27,8 +27,16 @@ const FILES = [
   {
     file: '05-maintenance.png',
     purpose: 'ТО list overdue/upcoming + add CTA',
+    // Force FAIL until recaptured after list/footer flex layout fix.
+    requireRecapture: true,
+    recaptureReason: 'CTA/list overlap — recapture after layout fix',
   },
-  { file: '06-consumables.png', purpose: 'Consumables stock + add CTA' },
+  {
+    file: '06-consumables.png',
+    purpose: 'Consumables list + add CTA',
+    requireRecapture: true,
+    recaptureReason: 'Wrong screen (detail) / needs list recapture',
+  },
   {
     file: '07-backup-export.png',
     purpose: 'Backup / restore / export entry points',
@@ -108,9 +116,16 @@ async function main() {
         size = `${Math.round(result.size / 1024)} KB`;
         const ok =
           result.outWidth === TARGET_W && result.outHeight === TARGET_H;
-        status = ok ? 'PASS' : 'FAIL';
-        if (!ok) allPass = false;
-        note = `from ${result.srcWidth}×${result.srcHeight}`;
+        const dimNote = `from ${result.srcWidth}×${result.srcHeight}`;
+        if (ok && entry.requireRecapture) {
+          status = 'FAIL';
+          allPass = false;
+          note = `${dimNote}; ${entry.recaptureReason}`;
+        } else {
+          status = ok ? 'PASS' : 'FAIL';
+          if (!ok) allPass = false;
+          note = dimNote;
+        }
       }
     } catch (err) {
       allPass = false;

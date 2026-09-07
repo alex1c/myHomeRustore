@@ -1,5 +1,7 @@
 /**
  * Documents tab — global archive with search, type filters, and add entry.
+ *
+ * Same layout contract as Maintenance: flex list region + footer CTA above banner.
  */
 
 import { type Href, useFocusEffect, useRouter } from 'expo-router';
@@ -82,7 +84,7 @@ export default function DocumentsScreen() {
   };
 
   return (
-    <Screen banner="documents">
+    <Screen banner="documents" contentStyle={styles.screenContent}>
       <Text style={[styles.title, { color: colors.text }]}>Документы</Text>
 
       <TextInput
@@ -106,40 +108,41 @@ export default function DocumentsScreen() {
         onSelect={(id) => setTypeFilter(id as DocumentFilterType)}
       />
 
-      {rows.length === 0 ? (
-        <EmptyState
-          title="Документов пока нет"
-          message={
-            itemCount === 0
-              ? 'Сначала добавьте вещь, затем сохраните чек или инструкцию.'
-              : 'Сохраняйте чеки, гарантийные талоны и инструкции рядом с вещами.'
-          }
-        />
-      ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(row) => row.document.id}
-          renderItem={({ item: row }) => (
-            <DocumentCard
-              document={row.document}
-              itemName={row.itemName}
-              onPress={() =>
-                router.push({
-                  pathname: '/document/[id]',
-                  params: { id: row.document.id },
-                })
-              }
-            />
-          )}
-          contentContainerStyle={styles.list}
-        />
-      )}
+      <View style={styles.listRegion}>
+        {rows.length === 0 ? (
+          <EmptyState
+            title="Документов пока нет"
+            message={
+              itemCount === 0
+                ? 'Сначала добавьте вещь, затем сохраните чек или инструкцию.'
+                : 'Сохраняйте чеки, гарантийные талоны и инструкции рядом с вещами.'
+            }
+          />
+        ) : (
+          <FlatList
+            style={styles.listFlex}
+            data={rows}
+            keyExtractor={(row) => row.document.id}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item: row }) => (
+              <DocumentCard
+                document={row.document}
+                itemName={row.itemName}
+                onPress={() =>
+                  router.push({
+                    pathname: '/document/[id]',
+                    params: { id: row.document.id },
+                  })
+                }
+              />
+            )}
+          />
+        )}
+      </View>
 
       <View style={styles.footer}>
         <Button
-          title={
-            itemCount === 0 ? 'Добавить вещь' : '+ Добавить документ'
-          }
+          title={itemCount === 0 ? 'Добавить вещь' : '+ Добавить документ'}
           onPress={openAddFlow}
         />
       </View>
@@ -148,6 +151,10 @@ export default function DocumentsScreen() {
 }
 
 const styles = StyleSheet.create({
+  screenContent: {
+    flex: 1,
+    paddingBottom: spacing.sm,
+  },
   title: {
     ...typography.title,
     marginBottom: spacing.md,
@@ -160,12 +167,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
-  list: {
-    paddingBottom: spacing.xl,
+  listRegion: {
+    flex: 1,
+    minHeight: 0,
+  },
+  listFlex: {
+    flex: 1,
+  },
+  listContent: {
+    paddingBottom: spacing.md,
     paddingTop: spacing.sm,
   },
   footer: {
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
 });

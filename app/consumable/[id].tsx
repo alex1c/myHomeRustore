@@ -8,7 +8,6 @@ import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -213,8 +212,8 @@ export default function ConsumableDetailScreen() {
           ),
         }}
       />
-      <Screen scroll>
-        <ScrollView>
+      {/* Screen already provides ScrollView — avoid nested scroll containers. */}
+      <Screen scroll contentStyle={styles.screenContent}>
           {itemName ? (
             <Pressable onPress={() => router.push(`/item/${consumable.itemId}`)}>
               <Text style={[styles.itemName, { color: colors.primary }]}>
@@ -379,7 +378,6 @@ export default function ConsumableDetailScreen() {
               );
             })
           )}
-        </ScrollView>
       </Screen>
     </>
   );
@@ -392,6 +390,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Extra bottom padding so last actions clear the home indicator on 360dp.
+  screenContent: {
+    paddingBottom: spacing.xxl,
+  },
   itemName: { ...typography.subtitle, marginBottom: spacing.md },
   section: { marginBottom: spacing.md, gap: spacing.xs },
   label: { ...typography.caption, marginTop: spacing.sm },
@@ -399,11 +401,18 @@ const styles = StyleSheet.create({
   detail: { ...typography.caption },
   secondary: { marginTop: spacing.sm },
   stockActions: { marginTop: spacing.sm, gap: spacing.sm },
-  setStockRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // Stack on narrow widths so the stock field and button never overlap.
+  setStockRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   stockField: {
     ...typography.body,
     minHeight: 48,
     minWidth: 72,
+    flexGrow: 0,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: spacing.md,

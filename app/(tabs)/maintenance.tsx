@@ -205,6 +205,7 @@ export default function MaintenanceScreen() {
         {toLocalDateOnly()}
       </Text>
 
+      {/* Compact ТО / Расходники segmented control (~40–44dp). */}
       <View style={styles.modeRow}>
         {([
           ['maintenance', 'ТО'],
@@ -214,6 +215,8 @@ export default function MaintenanceScreen() {
           return (
             <Pressable
               key={id}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
               onPress={() => {
                 setMode(id);
                 setSearch('');
@@ -254,7 +257,9 @@ export default function MaintenanceScreen() {
         ]}
       />
 
+      {/* Wrap chips stay compact; avoid ScrollView flexGrow stretch. */}
       <FilterChips
+        wrap
         chips={mode === 'maintenance' ? MAINTENANCE_FILTERS : CONSUMABLE_FILTERS}
         selectedId={mode === 'maintenance' ? maintenanceFilter : consumableFilter}
         onSelect={(id) => {
@@ -320,7 +325,7 @@ export default function MaintenanceScreen() {
       </View>
 
       <View style={styles.footer}>
-        <Button title={addTitle} onPress={openAddFlow} />
+        <Button title={addTitle} onPress={openAddFlow} style={styles.addButton} />
       </View>
     </Screen>
   );
@@ -330,30 +335,40 @@ const styles = StyleSheet.create({
   // Keep Screen body as a column flex layout (list region absorbs leftover height).
   screenContent: {
     flex: 1,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xs,
   },
   title: { ...typography.title },
-  date: { ...typography.body, marginBottom: spacing.md },
+  // Tighter rhythm so the first list card appears higher in the viewport.
+  date: {
+    ...typography.caption,
+    marginBottom: spacing.sm,
+  },
   modeRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   modeChip: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: radii.lg,
-    minHeight: 44,
+    borderRadius: radii.md,
+    minHeight: 40,
+    paddingVertical: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modeLabel: { ...typography.body, fontWeight: '600' },
+  modeLabel: {
+    ...typography.body,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
   search: {
     ...typography.body,
-    minHeight: 48,
+    minHeight: 40,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
     marginBottom: spacing.sm,
   },
   listRegion: {
@@ -364,11 +379,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
   },
   footer: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  // Keep primary CTA readable without oversized vertical padding.
+  addButton: {
+    minHeight: 44,
+    paddingVertical: spacing.sm,
   },
 });

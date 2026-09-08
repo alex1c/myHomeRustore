@@ -73,6 +73,24 @@ export default function MoreScreen() {
 
         <Pressable
           accessibilityRole="button"
+          onPress={() => router.push('/help' as Href)}
+          style={({ pressed }) => [
+            styles.row,
+            { opacity: pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Text style={[styles.rowTitle, { color: colors.text }]}>
+            Как пользоваться
+          </Text>
+          <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
+            Краткая инструкция по приложению
+          </Text>
+        </Pressable>
+
+        <Divider />
+
+        <Pressable
+          accessibilityRole="button"
           onPress={() => router.push('/backup' as Href)}
           style={({ pressed }) => [
             styles.row,

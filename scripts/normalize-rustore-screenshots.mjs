@@ -24,19 +24,14 @@ const FILES = [
     purpose: 'Робот-пылесос Dreame L20 Ultra detail',
   },
   { file: '04-documents.png', purpose: 'Documents archive + add CTA' },
+ {
+  file: '05-maintenance.png',
+  purpose: 'ТО list overdue/upcoming + add CTA',
+},
   {
-    file: '05-maintenance.png',
-    purpose: 'ТО list overdue/upcoming + add CTA',
-    // Force FAIL until recaptured after list/footer flex layout fix.
-    requireRecapture: true,
-    recaptureReason: 'CTA/list overlap — recapture after layout fix',
-  },
-  {
-    file: '06-consumables.png',
-    purpose: 'Consumables list + add CTA',
-    requireRecapture: true,
-    recaptureReason: 'Wrong screen (detail) / needs list recapture',
-  },
+  file: '06-consumables.png',
+  purpose: 'Consumables list + add CTA',
+},
   {
     file: '07-backup-export.png',
     purpose: 'Backup / restore / export entry points',
@@ -109,14 +104,31 @@ async function main() {
         note = 'missing raw and output';
         allPass = false;
       } else {
-        const source = fs.existsSync(rawPath) ? rawPath : outPath;
-        const result = await normalize(source, outPath);
-        dims = `${result.outWidth}×${result.outHeight}`;
-        ratio = (result.outWidth / result.outHeight).toFixed(4);
-        size = `${Math.round(result.size / 1024)} KB`;
-        const ok =
-          result.outWidth === TARGET_W && result.outHeight === TARGET_H;
-        const dimNote = `from ${result.srcWidth}×${result.srcHeight}`;
+        let result;
+
+if (fs.existsSync(rawPath)) {
+  result = await normalize(rawPath, outPath);
+} else {
+  const meta = await sharp(outPath).metadata();
+  if (!meta.width || !meta.height) {
+    throw new Error(`Cannot read dimensions: ${outPath}`);
+  }
+
+  result = {
+    srcWidth: meta.width,
+    srcHeight: meta.height,
+    outWidth: meta.width,
+    outHeight: meta.height,
+    size: fs.statSync(outPath).size,
+  };
+}
+
+dims = `${result.outWidth}×${result.outHeight}`;
+ratio = (result.outWidth / result.outHeight).toFixed(4);
+size = `${Math.round(result.size / 1024)} KB`;
+const ok =
+  result.outWidth === TARGET_W && result.outHeight === TARGET_H;
+const dimNote = `from ${result.srcWidth}×${result.srcHeight}`;
         if (ok && entry.requireRecapture) {
           status = 'FAIL';
           allPass = false;

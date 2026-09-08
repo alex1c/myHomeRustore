@@ -5,36 +5,71 @@
 import fs from 'fs';
 import path from 'path';
 
-import { HELP_INTRO, HELP_SECTIONS } from '@/src/content/helpGuide';
+import {
+  HELP_REQUIRED_SECTION_IDS,
+  HELP_SECTIONS,
+  HELP_SUBTITLE,
+} from '@/src/content/helpGuide';
 
 describe('help guide content', () => {
-  test('covers the expected owner-facing sections', () => {
-    expect(HELP_INTRO.length).toBeGreaterThan(40);
-    const ids = HELP_SECTIONS.map((section) => section.id);
-    expect(ids).toEqual([
-      'items',
-      'locations',
-      'documents',
-      'warranties',
-      'maintenance',
-      'consumables',
-      'today',
-      'backup',
-      'privacy',
+  test('covers all required owner-facing sections in order', () => {
+    expect(HELP_SUBTITLE.length).toBeGreaterThan(20);
+    expect(HELP_SECTIONS.map((section) => section.id)).toEqual([
+      ...HELP_REQUIRED_SECTION_IDS,
     ]);
   });
 
-  test('stays offline-friendly (no remote URLs in copy)', () => {
-    const blob = [HELP_INTRO, ...HELP_SECTIONS.flatMap((s) => s.paragraphs)].join(
-      '\n',
-    );
-    expect(blob).not.toMatch(/https?:\/\//i);
+  test('each section has a title, icon, and usable copy', () => {
+    for (const section of HELP_SECTIONS) {
+      expect(section.title.trim().length).toBeGreaterThan(2);
+      expect(section.icon.trim().length).toBeGreaterThan(2);
+      const body = [
+        ...section.paragraphs,
+        ...(section.bullets ?? []),
+      ].join('\n');
+      expect(body.trim().length).toBeGreaterThan(20);
+    }
   });
 
-  test('privacy note mentions local storage and backup', () => {
-    const privacy = HELP_SECTIONS.find((section) => section.id === 'privacy');
-    expect(privacy?.paragraphs.join(' ')).toMatch(/локально/i);
-    expect(privacy?.paragraphs.join(' ')).toMatch(/резервн/i);
+  test('stays offline-friendly (no remote URLs in guide copy)', () => {
+    const blob = HELP_SECTIONS.flatMap((section) => [
+      section.title,
+      ...section.paragraphs,
+      ...(section.bullets ?? []),
+    ]).join('\n');
+    expect(blob).not.toMatch(/https?:\/\//i);
+    expect(blob).not.toMatch(/\b(SQLite|repository|schema|migration|CRUD)\b/i);
+  });
+
+  test('distinguishes backup restore from CSV export', () => {
+    const backup = HELP_SECTIONS.find((section) => section.id === 'backup');
+    const exp = HELP_SECTIONS.find((section) => section.id === 'export');
+    expect(backup?.paragraphs.join(' ')).toMatch(/\.myhomebackup/i);
+    expect(backup?.paragraphs.join(' ')).toMatch(/замен/i);
+    expect(exp?.paragraphs.join(' ')).toMatch(/CSV/i);
+    expect(exp?.paragraphs.join(' ')).toMatch(/не полн/i);
+  });
+
+  test('data section mentions local storage without overclaiming ads absence', () => {
+    const data = HELP_SECTIONS.find((section) => section.id === 'data');
+    const text = data?.paragraphs.join(' ') ?? '';
+    expect(text).toMatch(/локально/i);
+    expect(text).toMatch(/регистрац/i);
+    expect(text).not.toMatch(/ничего никуда не переда/i);
+  });
+
+  test('consumables section explains ТО vs расходник', () => {
+    const consumables = HELP_SECTIONS.find(
+      (section) => section.id === 'consumables',
+    );
+    const text = [
+      ...(consumables?.paragraphs ?? []),
+      ...(consumables?.bullets ?? []),
+    ].join(' ');
+    expect(text).toMatch(/ТО/i);
+    expect(text).toMatch(/Расходник/i);
+    expect(text).toMatch(/Требуют внимания/);
+    expect(text).toMatch(/Нет в запасе/);
   });
 });
 
@@ -55,13 +90,17 @@ describe('help route wiring', () => {
     );
     expect(more).toContain("router.push('/help'");
     expect(more).toContain('Как пользоваться');
+    expect(more).toContain('help-circle-outline');
   });
 
-  test('help screen file exists and uses offline guide module', () => {
+  test('help screen renders offline guide and optional privacy link only', () => {
     const helpPath = path.join(__dirname, '..', 'app', 'help.tsx');
     expect(fs.existsSync(helpPath)).toBe(true);
     const source = fs.readFileSync(helpPath, 'utf8');
     expect(source).toContain('HELP_SECTIONS');
+    expect(source).toContain('HELP_SUBTITLE');
     expect(source).toContain('helpGuide');
+    expect(source).not.toMatch(/fetch\(/);
+    expect(source).not.toMatch(/WebView/);
   });
 });

@@ -2,9 +2,10 @@
  * More tab — settings, backup, export, and support entry points.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { type Href, useRouter } from 'expo-router';
 import React from 'react';
-import { Linking, Pressable, StyleSheet, Text } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
@@ -73,18 +74,28 @@ export default function MoreScreen() {
 
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Как пользоваться"
           onPress={() => router.push('/help' as Href)}
           style={({ pressed }) => [
             styles.row,
+            styles.rowWithIcon,
             { opacity: pressed ? 0.85 : 1 },
           ]}
         >
-          <Text style={[styles.rowTitle, { color: colors.text }]}>
-            Как пользоваться
-          </Text>
-          <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
-            Краткая инструкция по приложению
-          </Text>
+          <Ionicons
+            name="help-circle-outline"
+            size={22}
+            color={colors.primary}
+            style={styles.rowIcon}
+          />
+          <View style={styles.rowText}>
+            <Text style={[styles.rowTitle, { color: colors.text }]}>
+              Как пользоваться
+            </Text>
+            <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
+              Встроенная инструкция по приложению
+            </Text>
+          </View>
         </Pressable>
 
         <Divider />
@@ -182,6 +193,17 @@ const styles = StyleSheet.create({
     minHeight: 56,
     justifyContent: 'center',
     paddingVertical: spacing.sm,
+  },
+  rowWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rowIcon: {
+    marginRight: spacing.sm,
+  },
+  rowText: {
+    flex: 1,
+    flexShrink: 1,
   },
   rowTitle: {
     ...typography.body,
